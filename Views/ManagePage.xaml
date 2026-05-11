@@ -1,0 +1,358 @@
+<Page x:Class="FaceSearchApp.Views.ManagePage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+      xmlns:conv="clr-namespace:FaceSearchApp.Converters"
+      Title="등록 관리"
+      Background="Transparent">
+
+    <Page.Resources>
+        <conv:BoolToVisibilityConverter        x:Key="BoolVis" />
+        <conv:InverseBoolToVisibilityConverter x:Key="InvBoolVis" />
+        <BooleanToVisibilityConverter          x:Key="SysBoolVis" />
+
+        <!-- Row alternation -->
+        <Style x:Key="AltRow" TargetType="DataGridRow">
+            <Style.Triggers>
+                <Trigger Property="AlternationIndex" Value="0">
+                    <Setter Property="Background" Value="Transparent"/>
+                </Trigger>
+                <Trigger Property="AlternationIndex" Value="1">
+                    <Setter Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}"/>
+                </Trigger>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource SystemAccentColorPrimaryBrush}"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+    </Page.Resources>
+
+    <Grid Margin="20,12,20,20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="12"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="12"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- ════════ TOP TOOLBAR ════════ -->
+        <ui:Card Grid.Row="0" Padding="16,12">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="20"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="20"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="20"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="20"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*" MinWidth="30"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="8"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="8"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Collection type -->
+                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                    <TextBlock Text="컬렉션" FontSize="11" Opacity="0.55" Margin="0,0,0,4"/>
+                    <StackPanel Orientation="Horizontal">
+                        <RadioButton Content="일반 (FaceVectors)"
+                                     IsChecked="{Binding IsNormalType}"
+                                     Margin="0,0,12,0" VerticalAlignment="Center"/>
+                        <RadioButton Content="타깃 (TargetVectors)"
+                                     IsChecked="{Binding IsTargetType}"
+                                     VerticalAlignment="Center"/>
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- Start date -->
+                <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                    <TextBlock Text="시작일" FontSize="11" Opacity="0.55" Margin="0,0,0,4"/>
+                    <DatePicker SelectedDate="{Binding StartDate}" Width="130"/>
+                </StackPanel>
+
+                <!-- End date -->
+                <StackPanel Grid.Column="4" VerticalAlignment="Center">
+                    <TextBlock Text="종료일" FontSize="11" Opacity="0.55" Margin="0,0,0,4"/>
+                    <DatePicker SelectedDate="{Binding EndDate}" Width="130"/>
+                </StackPanel>
+
+                <!-- Clear dates -->
+                <Button Grid.Column="6"
+                        Content="날짜 초기화"
+                        VerticalAlignment="Bottom"
+                        Padding="10,6"
+                        Command="{Binding ClearDatesCommand}"/>
+
+                <!-- Page size -->
+                <StackPanel Grid.Column="8" VerticalAlignment="Center">
+                    <TextBlock Text="페이지 크기" FontSize="11" Opacity="0.55" Margin="0,0,0,4"/>
+                    <ComboBox Width="80" SelectedValue="{Binding PageSize}" SelectedValuePath="Tag">
+                        <ComboBoxItem Content="10"  Tag="10"/>
+                        <ComboBoxItem Content="20"  Tag="20" IsSelected="True"/>
+                        <ComboBoxItem Content="50"  Tag="50"/>
+                        <ComboBoxItem Content="100" Tag="100"/>
+                    </ComboBox>
+                </StackPanel>
+
+                <!-- Spacer -->
+                <Grid Grid.Column="9">
+                    <Border Background="Gray" Width="1"/>
+                </Grid>
+
+                <!-- Select All / None -->
+                <Button Grid.Column="10"
+                        Content="전체 선택"
+                        Padding="10,6"
+                        VerticalAlignment="Center"
+                        Command="{Binding SelectAllCommand}"/>
+
+                <Button Grid.Column="12"
+                        Content="선택 해제"
+                        Padding="10,6"
+                        VerticalAlignment="Center"
+                        Command="{Binding SelectNoneCommand}"/>
+
+                <!-- Load button -->
+                <ui:Button Grid.Column="14"
+                           Content="조회"
+                           Appearance="Primary"
+                           Padding="16,6"
+                           VerticalAlignment="Center"
+                           Command="{Binding LoadCommand}"
+                           Icon="{ui:SymbolIcon Symbol=Search24}"/>
+            </Grid>
+        </ui:Card>
+
+        <!-- ════════ DATA GRID ════════ -->
+        <ui:Card Grid.Row="2" Padding="0" VerticalAlignment="Stretch" VerticalContentAlignment="Stretch">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <!-- Card header -->
+                <Border Grid.Row="0" CornerRadius="8,8,0,0"
+                        Background="{DynamicResource ControlFillColorDefaultBrush}"
+                        Padding="16,10"
+                        >
+                    <Grid>
+                        <StackPanel Orientation="Horizontal">
+                            <ui:SymbolIcon Symbol="PeopleList24" Margin="0,0,8,0"/>
+                            <TextBlock Text="등록된 벡터 목록"
+                                       FontWeight="SemiBold" VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <!-- Status / page info -->
+                        <TextBlock Text="{Binding PageInfo}"
+                                   HorizontalAlignment="Right"
+                                   VerticalAlignment="Center"
+                                   FontSize="12" Opacity="0.6"/>
+                    </Grid>
+                </Border>
+
+                <!-- Loading spinner overlay -->
+                <Border Grid.Row="1" Background="#80000000" CornerRadius="0,0,8,8"
+                        Visibility="{Binding IsLoading, Converter={StaticResource BoolVis}}"
+                        Panel.ZIndex="10"
+                        >
+                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <ui:ProgressRing IsIndeterminate="True" Width="48" Height="48"/>
+                        <TextBlock Text="데이터 조회 중..." Margin="0,12,0,0"
+                                   HorizontalAlignment="Center" Opacity="0.75"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Empty placeholder -->
+                <StackPanel Grid.Row="1"
+                            HorizontalAlignment="Center" VerticalAlignment="Center"
+                            Visibility="{Binding HasItems, Converter={StaticResource InvBoolVis}}"
+                            >
+                    <ui:SymbolIcon Symbol="PeopleList24" FontSize="64" Opacity="0.18"
+                                   HorizontalAlignment="Center"/>
+                    <TextBlock Text="{Binding StatusMessage}"
+                               FontSize="14" Opacity="0.45"
+                               Margin="0,14,0,0"
+                               HorizontalAlignment="Center"/>
+                </StackPanel>
+
+                <!-- Grid -->
+                <DataGrid Grid.Row="1"
+                          x:Name="ItemGrid"
+                          ItemsSource="{Binding Items}"
+                          AutoGenerateColumns="False"
+                          CanUserAddRows="False"
+                          CanUserDeleteRows="False"
+                          IsReadOnly="False"
+                          SelectionMode="Extended"
+                          HeadersVisibility="Column"
+                          GridLinesVisibility="Horizontal"
+                          HorizontalGridLinesBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                          BorderThickness="0"
+                          Background="Transparent"
+                          RowStyle="{StaticResource AltRow}"
+                          AlternationCount="2"
+                          ColumnHeaderHeight="36"
+                          RowHeight="38"
+                          Visibility="{Binding HasItems, Converter={StaticResource BoolVis}}"
+                          MaxHeight="{Binding ActualHeight, RelativeSource={RelativeSource AncestorType=Grid}}">
+
+                    <DataGrid.ColumnHeaderStyle>
+                        <Style TargetType="DataGridColumnHeader">
+                            <Setter Property="Background" Value="Transparent"/>
+                            <Setter Property="Padding" Value="12,0"/>
+                            <Setter Property="FontSize" Value="12"/>
+                            <Setter Property="FontWeight" Value="SemiBold"/>
+                        </Style>
+                    </DataGrid.ColumnHeaderStyle>
+
+                    <DataGrid.Columns>
+
+                        <!-- Checkbox -->
+                        <DataGridTemplateColumn Header="" Width="Auto" CanUserResize="False">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                              HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+
+                        <!-- Vector ID -->
+                        <DataGridTemplateColumn Header="벡터 ID" Width="160">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding ShortId}"
+                                               ToolTip="{Binding Id}"
+                                               VerticalAlignment="Center"
+                                               Margin="12,0"
+                                               FontFamily="Consolas"
+                                               FontSize="12"/>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+
+                        <!-- Image ID -->
+                        <DataGridTemplateColumn Header="이미지 ID" Width="160">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding ShortImageId}"
+                                               ToolTip="{Binding ImageId}"
+                                               VerticalAlignment="Center"
+                                               Margin="12,0"
+                                               FontFamily="Consolas"
+                                               FontSize="12"/>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+
+                        <!-- Full Vector ID (copyable) -->
+                        <DataGridTemplateColumn Header="전체 벡터 ID" Width="*">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding Id}"
+                                               VerticalAlignment="Center"
+                                               Margin="12,0"
+                                               FontFamily="Consolas"
+                                               FontSize="11"
+                                               Opacity="0.55"
+                                               TextTrimming="CharacterEllipsis"/>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+
+                        <!-- Full Image ID -->
+                        <DataGridTemplateColumn Header="전체 이미지 ID" Width="*">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding ImageId}"
+                                               VerticalAlignment="Center"
+                                               Margin="12,0"
+                                               FontFamily="Consolas"
+                                               FontSize="11"
+                                               Opacity="0.55"
+                                               TextTrimming="CharacterEllipsis"/>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+
+                        <!-- Created At -->
+                        <DataGridTemplateColumn Header="등록일시" Width="160">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding CreatedAtStr}"
+                                               VerticalAlignment="Center"
+                                               Margin="12,0"
+                                               FontSize="12"/>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+
+                    </DataGrid.Columns>
+                </DataGrid>
+            </Grid>
+        </ui:Card>
+
+        <!-- ════════ BOTTOM BAR ════════ -->
+        <ui:Card Grid.Row="4" Padding="14,10">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="8"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="8"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="24"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Status / selection info -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <ui:ProgressRing IsIndeterminate="True" Width="18" Height="18"
+                                     Margin="0,0,8,0"
+                                     Visibility="{Binding IsDeleting, Converter={StaticResource BoolVis}}"/>
+                    <TextBlock VerticalAlignment="Center">
+                        <Run Text="{Binding SelectedCount, Mode=OneWay}"/>
+                        <Run Text="건 선택됨  ·  "/>
+                        <Run Text="{Binding StatusMessage, Mode=OneWay}"/>
+                    </TextBlock>
+                </StackPanel>
+
+                <!-- Paging -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                    <ui:Button Content="이전"
+                               Icon="{ui:SymbolIcon Symbol=ChevronLeft24}"
+                               Padding="10,4"
+                               Command="{Binding PreviousPageCommand}"
+                               IsEnabled="{Binding HasPrevious}"/>
+                    <TextBlock Text="{Binding PageInfo}"
+                               VerticalAlignment="Center"
+                               Margin="12,0" FontSize="13"/>
+                    <ui:Button Content="다음"
+                               Icon="{ui:SymbolIcon Symbol=ChevronRight24}"
+                               ContentStringFormat="다음"
+                               Padding="10,4"
+                               Command="{Binding NextPageCommand}"
+                               IsEnabled="{Binding HasNext}"/>
+                </StackPanel>
+
+                <!-- Delete selected -->
+                <ui:Button Grid.Column="8"
+                           Content="선택 항목 삭제"
+                           Appearance="Danger"
+                           Padding="14,6"
+                           Command="{Binding DeleteSelectedCommand}"
+                           Icon="{ui:SymbolIcon Symbol=Delete24}"
+                           IsEnabled="{Binding IsDeleting, Converter={StaticResource InvBoolVis}}"/>
+            </Grid>
+        </ui:Card>
+
+    </Grid>
+</Page>

@@ -1,0 +1,298 @@
+﻿<Page x:Class="FaceSearchApp.Views.SearchPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+      xmlns:conv="clr-namespace:FaceSearchApp.Converters"
+      Title="얼굴 검색"
+      Background="Transparent">
+
+    <Page.Resources>
+        <conv:BoolToVisibilityConverter         x:Key="BoolVis" />
+        <conv:InverseBoolToVisibilityConverter  x:Key="InvBoolVis" />
+        <conv:NullToVisibilityConverter         x:Key="NullVis" />
+        <conv:NotNullToVisibilityConverter      x:Key="NotNullVis" />
+        <conv:ScoreToForegroundConverter        x:Key="ScoreFg" />
+        <conv:ScoreToProgressBrushConverter     x:Key="ScorePb" />
+        <conv:ScoreToPercentConverter           x:Key="ScorePct" />
+        <BooleanToVisibilityConverter           x:Key="SysBoolVis" />
+    </Page.Resources>
+
+    <Grid Margin="20,12,20,20">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="260" MinWidth="220" />
+            <ColumnDefinition Width="12" />
+            <ColumnDefinition Width="220" MinWidth="200" />
+            <ColumnDefinition Width="12" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <!-- ════════════════════════════════════
+             LEFT: Query image
+             ════════════════════════════════════ -->
+        <ui:Card Grid.Column="0" Padding="0" VerticalAlignment="Stretch">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <!-- Header -->
+                <Border Grid.Row="0" CornerRadius="8,8,0,0"
+                        Background="{DynamicResource ControlFillColorDefaultBrush}"
+                        Padding="14,10">
+                    <StackPanel Orientation="Horizontal">
+                        <ui:SymbolIcon Symbol="PersonSearch24" Margin="0,0,8,0"/>
+                        <TextBlock Text="검색 이미지" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Drop Zone -->
+                <Border Grid.Row="1"
+                        Margin="10"
+                        CornerRadius="8"
+                        BorderThickness="2"
+                        BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                        MinHeight="280"
+                        AllowDrop="True"
+                        Drop="QueryZone_Drop"
+                        DragOver="QueryZone_DragOver"
+                        DragLeave="QueryZone_DragLeave"
+                        MouseLeftButtonDown="QueryZone_Click"
+                        Cursor="Hand"
+                        x:Name="QueryDropZone">
+                    <Grid>
+                        <!-- Actual image -->
+                        <Image Source="{Binding QueryImage}"
+                           Stretch="Uniform"
+                           Visibility="{Binding QueryImage, Converter={StaticResource NullVis}}" />
+
+                        <!-- Placeholder -->
+                        <Border Visibility="{Binding QueryImage, Converter={StaticResource NotNullVis}}">
+                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
+                                    Margin="20">
+                                <ui:SymbolIcon Symbol="ImageAdd24" FontSize="52" Opacity="0.35"
+                                           HorizontalAlignment="Center"/>
+                                <TextBlock Text="여기에 이미지를 드래그" FontSize="13"
+                                       Opacity="0.6" Margin="0,12,0,4"
+                                       HorizontalAlignment="Center"/>
+                                <TextBlock Text="또는 클릭하여 선택" FontSize="12"
+                                       Opacity="0.45" HorizontalAlignment="Center"/>
+                                <TextBlock Text="JPG · PNG · BMP · WEBP" FontSize="11"
+                                       Opacity="0.35" Margin="0,8,0,0"
+                                       HorizontalAlignment="Center"/>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+                </Border>
+
+                <!-- Image info -->
+                <TextBlock Grid.Row="2"
+                           Text="{Binding ImageInfo}"
+                           FontSize="11" Opacity="0.55"
+                           HorizontalAlignment="Center"
+                           Margin="10,0,10,6"
+                           Visibility="{Binding QueryImage, Converter={StaticResource NullVis}}"/>
+
+                <!-- Buttons -->
+                <StackPanel Grid.Row="3" Orientation="Horizontal"
+                            HorizontalAlignment="Center" Margin="10,0,10,12">
+                    <Button Content="파일 선택" Padding="12,6" Margin="0,0,6,0"
+                            Click="SelectFile_Click"/>
+                    <Button Content="초기화" Padding="12,6"
+                            Command="{Binding ClearQueryCommand}"
+                            Visibility="{Binding QueryImage, Converter={StaticResource NullVis}}"/>
+                </StackPanel>
+            </Grid>
+        </ui:Card>
+
+        <!-- ════════════════════════════════════
+             CENTER: Options
+             ════════════════════════════════════ -->
+        <ui:Card Grid.Column="2" Padding="0" VerticalAlignment="Stretch">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel>
+
+                    <Border CornerRadius="8,8,0,0"
+                            Background="{DynamicResource ControlFillColorDefaultBrush}"
+                            Padding="14,10" Margin="0,0,0,14">
+                        <StackPanel Orientation="Horizontal">
+                            <ui:SymbolIcon Symbol="Options24" Margin="0,0,8,0"/>
+                            <TextBlock Text="검색 옵션" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
+
+                    <StackPanel Margin="14,0,14,14">
+
+                        <!-- Search Type -->
+                        <TextBlock Text="검색 대상" FontSize="12" Opacity="0.65" Margin="0,0,0,6"/>
+                        <Border CornerRadius="6" BorderThickness="1"
+                                BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                                Padding="10,8" Margin="0,0,0,14">
+                            <StackPanel>
+                                <RadioButton Content="일반 벡터 (FaceVectors)"
+                                             IsChecked="{Binding IsNormalType}"
+                                             FontSize="12" Margin="0,0,0,6"/>
+                                <RadioButton Content="타깃 벡터 (TargetVectors)"
+                                             IsChecked="{Binding IsTargetType}"
+                                             FontSize="12"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Min Score -->
+                        <Grid Margin="0,0,0,4">
+                            <TextBlock Text="최소 유사도" FontSize="12" Opacity="0.65"/>
+                            <TextBlock Text="{Binding MinScore, StringFormat=P0}"
+                                       FontWeight="SemiBold" HorizontalAlignment="Right"/>
+                        </Grid>
+                        <Slider Value="{Binding MinScore}"
+                                Minimum="0" Maximum="1"
+                                SmallChange="0.01" LargeChange="0.1"
+                                Margin="0,0,0,16"/>
+
+                        <Separator Margin="0,0,0,14" Opacity="0.3"/>
+
+                        <!-- Date Range -->
+                        <TextBlock Text="날짜 범위" FontSize="12" Opacity="0.65" Margin="0,0,0,8"/>
+
+                        <TextBlock Text="시작일" FontSize="11" Opacity="0.5" Margin="0,0,0,4"/>
+                        <DatePicker SelectedDate="{Binding StartDate}"
+                                    HorizontalAlignment="Stretch" Margin="0,0,0,8"/>
+
+                        <TextBlock Text="종료일" FontSize="11" Opacity="0.5" Margin="0,0,0,4"/>
+                        <DatePicker SelectedDate="{Binding EndDate}"
+                                    HorizontalAlignment="Stretch" Margin="0,0,0,8"/>
+
+                        <Button Content="날짜 초기화"
+                                HorizontalAlignment="Stretch"
+                                Padding="0,6"
+                                Command="{Binding ClearDatesCommand}"
+                                Margin="0,0,0,16"/>
+
+                        <Separator Margin="0,0,0,16" Opacity="0.3"/>
+
+                        <!-- Search Button -->
+                        <ui:Button Content="검색 시작"
+                                   Appearance="Primary"
+                                   HorizontalAlignment="Stretch"
+                                   Padding="0,10"
+                                   Command="{Binding SearchCommand}"
+                                   Icon="{ui:SymbolIcon Symbol=Search24}"
+                                   Margin="0,0,0,12"/>
+
+                        <!-- Progress -->
+                        <ui:ProgressRing IsIndeterminate="True"
+                                         Width="32" Height="32"
+                                         HorizontalAlignment="Center"
+                                         Margin="0,4,0,4"
+                                         Visibility="{Binding IsSearching, Converter={StaticResource BoolVis}}"/>
+
+                        <!-- Status -->
+                        <TextBlock Text="{Binding StatusMessage}"
+                                   TextWrapping="Wrap"
+                                   FontSize="12"
+                                   Opacity="0.7"
+                                   HorizontalAlignment="Center"
+                                   TextAlignment="Center"
+                                   Margin="0,4,0,0"/>
+                    </StackPanel>
+                </StackPanel>
+            </ScrollViewer>
+        </ui:Card>
+
+        <!-- ════════════════════════════════════
+             RIGHT: Results
+             ════════════════════════════════════ -->
+        <ui:Card Grid.Column="4" Padding="0" VerticalAlignment="Stretch">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <!-- Header -->
+                <Border Grid.Row="0" CornerRadius="8,8,0,0"
+                        Background="{DynamicResource ControlFillColorDefaultBrush}"
+                        Padding="14,10">
+                    <TextBlock Text="{Binding ResultHeader}"
+                               FontWeight="SemiBold"/>
+                </Border>
+
+                <!-- Empty placeholder -->
+                <StackPanel Grid.Row="1"
+                            HorizontalAlignment="Center" VerticalAlignment="Center"
+                            Visibility="{Binding HasResults, Converter={StaticResource InvBoolVis}}">
+                    <ui:SymbolIcon Symbol="Search24" FontSize="56" Opacity="0.2"
+                                   HorizontalAlignment="Center"/>
+                    <TextBlock Text="검색 결과가 여기에 표시됩니다" Opacity="0.4"
+                               Margin="0,12,0,0" FontSize="14"/>
+                </StackPanel>
+
+                <!-- Results -->
+                <ScrollViewer Grid.Row="1"
+                              VerticalScrollBarVisibility="Auto"
+                              Padding="10"
+                              Visibility="{Binding HasResults, Converter={StaticResource BoolVis}}">
+                    <ItemsControl ItemsSource="{Binding Results}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <!-- Result Card -->
+                                <ui:Card Margin="5" Padding="0" Width="168"
+                                         VerticalAlignment="Top">
+                                    <StackPanel>
+                                        <!-- Face thumbnail -->
+                                        <Border CornerRadius="6,6,0,0"
+                                                ClipToBounds="True"
+                                                Height="168"
+                                                Background="{DynamicResource ControlFillColorDefaultBrush}">
+                                            <Grid>
+                                                <Image Source="{Binding Image}"
+                                                       Stretch="UniformToFill"
+                                                       Visibility="{Binding Image, Converter={StaticResource NullVis}}"/>
+                                                <ui:SymbolIcon Symbol="Person24"
+                                                               FontSize="40" Opacity="0.25"
+                                                               HorizontalAlignment="Center"
+                                                               VerticalAlignment="Center"
+                                                               Visibility="{Binding Image, Converter={StaticResource NotNullVis}}"/>
+                                            </Grid>
+                                        </Border>
+
+                                        <StackPanel Margin="10,8,10,10">
+                                            <!-- Score bar -->
+                                            <ProgressBar Value="{Binding Score, Converter={StaticResource ScorePct}}"
+                                                         Maximum="100" Height="5"
+                                                         Foreground="{Binding Score, Converter={StaticResource ScorePb}}"
+                                                         Background="{DynamicResource ControlFillColorDefaultBrush}"
+                                                         BorderThickness="0"
+                                                         Margin="0,0,0,6"/>
+
+                                            <!-- Score value -->
+                                            <TextBlock Text="{Binding ScoreText}"
+                                                       FontSize="20" FontWeight="Bold"
+                                                       HorizontalAlignment="Center"
+                                                       Foreground="{Binding Score, Converter={StaticResource ScoreFg}}"/>
+
+                                            <!-- Image ID -->
+                                            <TextBlock Text="{Binding ImageId}"
+                                                       FontSize="9" Opacity="0.45"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       HorizontalAlignment="Center"
+                                                       Margin="0,3,0,0"
+                                                       ToolTip="{Binding ImageId}"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </ui:Card>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </Grid>
+        </ui:Card>
+    </Grid>
+</Page>

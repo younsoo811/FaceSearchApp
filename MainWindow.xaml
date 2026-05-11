@@ -1,0 +1,53 @@
+﻿<ui:FluentWindow x:Class="FaceSearchApp.MainWindow"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 Title="안면 인식 시스템"
+                 Width="1340" Height="820"
+                 MinWidth="1100" MinHeight="660"
+                 WindowStartupLocation="CenterScreen"
+                 ExtendsContentIntoTitleBar="True"
+                 WindowBackdropType="Mica">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- Title Bar -->
+        <ui:TitleBar Grid.Row="0"
+                     Title="안면 인식 시스템"
+                     ShowMinimize="True"
+                     ShowMaximize="True"
+                     ShowClose="True" />
+
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="200" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <!-- ── 왼쪽 사이드바 ── -->
+            <ui:NavigationView x:Name="SideNav"
+                               Grid.Column="0"
+                               Grid.ColumnSpan="2"
+                               PaneDisplayMode="Left"
+                               IsPaneOpen="True"
+                               OpenPaneLength="200"
+                               CompactPaneLength="48"
+                               Background="{DynamicResource ApplicationBackgroundBrush}"
+                               BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                               BorderThickness="0,0,1,0"
+                               MenuItemsSource="{Binding ViewModel.MenuItems, Mode=OneWay}"
+                               FooterMenuItemsSource="{Binding ViewModel.FooterMenuItems, Mode=OneWay}"                               
+                               >
+                <ui:NavigationView.ContentOverlay>
+                    <Grid>
+                        <ui:SnackbarPresenter x:Name="SnackbarPresenter" />
+                    </Grid>
+                </ui:NavigationView.ContentOverlay>
+            </ui:NavigationView>
+        </Grid>
+    </Grid>
+</ui:FluentWindow>
