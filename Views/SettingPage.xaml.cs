@@ -1,4 +1,5 @@
-﻿using System;
+﻿using FaceSearchApp.ViewModels;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -20,9 +21,10 @@ namespace FaceSearchApp.Views
     /// </summary>
     public partial class SettingPage : Page
     {
-        public SettingPage()
+        public SettingPage(SettingViewModel vm)
         {
             InitializeComponent();
+            DataContext = vm;
         }
     }
 }
