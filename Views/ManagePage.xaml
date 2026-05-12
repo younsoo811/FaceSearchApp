@@ -42,14 +42,14 @@
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="20"/>
-                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="20"/>
+                    <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="20"/>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="20"/>
                     <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="20"/>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="*" MinWidth="30"/>
+                    <ColumnDefinition Width="30"/>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="8"/>
                     <ColumnDefinition Width="Auto"/>
@@ -73,13 +73,13 @@
                 <!-- Start date -->
                 <StackPanel Grid.Column="2" VerticalAlignment="Center">
                     <TextBlock Text="시작일" FontSize="11" Opacity="0.55" Margin="0,0,0,4"/>
-                    <DatePicker SelectedDate="{Binding StartDate}" Width="130"/>
+                    <DatePicker SelectedDate="{Binding StartDate}" />
                 </StackPanel>
 
                 <!-- End date -->
                 <StackPanel Grid.Column="4" VerticalAlignment="Center">
                     <TextBlock Text="종료일" FontSize="11" Opacity="0.55" Margin="0,0,0,4"/>
-                    <DatePicker SelectedDate="{Binding EndDate}" Width="130"/>
+                    <DatePicker SelectedDate="{Binding EndDate}" />
                 </StackPanel>
 
                 <!-- Clear dates -->

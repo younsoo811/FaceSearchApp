@@ -3,8 +3,8 @@
                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
                  Title="안면 인식 시스템"
-                 Width="1340" Height="820"
-                 MinWidth="1100" MinHeight="660"
+                 Width="1450" Height="820"
+                 MinWidth="1450" MinHeight="660"
                  WindowStartupLocation="CenterScreen"
                  ExtendsContentIntoTitleBar="True"
                  WindowBackdropType="Mica">

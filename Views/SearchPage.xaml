@@ -29,7 +29,7 @@
         <!-- ════════════════════════════════════
              LEFT: Query image
              ════════════════════════════════════ -->
-        <ui:Card Grid.Column="0" Padding="0" VerticalAlignment="Stretch">
+        <ui:Card Grid.Column="0" Padding="0" VerticalAlignment="Stretch" VerticalContentAlignment="Stretch">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
@@ -55,6 +55,7 @@
                         BorderThickness="2"
                         BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
                         MinHeight="280"
+                        MaxHeight="400"
                         AllowDrop="True"
                         Drop="QueryZone_Drop"
                         DragOver="QueryZone_DragOver"
@@ -110,7 +111,7 @@
         <!-- ════════════════════════════════════
              CENTER: Options
              ════════════════════════════════════ -->
-        <ui:Card Grid.Column="2" Padding="0" VerticalAlignment="Stretch">
+        <ui:Card Grid.Column="2" Padding="0" VerticalAlignment="Stretch" VerticalContentAlignment="Stretch">
             <ScrollViewer VerticalScrollBarVisibility="Auto">
                 <StackPanel>
 
@@ -204,7 +205,7 @@
         <!-- ════════════════════════════════════
              RIGHT: Results
              ════════════════════════════════════ -->
-        <ui:Card Grid.Column="4" Padding="0" VerticalAlignment="Stretch">
+        <ui:Card Grid.Column="4" Padding="0" VerticalAlignment="Stretch" VerticalContentAlignment="Stretch">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
@@ -233,6 +234,7 @@
                 <ScrollViewer Grid.Row="1"
                               VerticalScrollBarVisibility="Auto"
                               Padding="10"
+                              MaxHeight="{Binding ActualHeight, RelativeSource={RelativeSource AncestorType=Grid}}"
                               Visibility="{Binding HasResults, Converter={StaticResource BoolVis}}">
                     <ItemsControl ItemsSource="{Binding Results}">
                         <ItemsControl.ItemsPanel>
