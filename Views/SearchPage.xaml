@@ -205,96 +205,98 @@
         <!-- ════════════════════════════════════
              RIGHT: Results
              ════════════════════════════════════ -->
-        <ui:Card Grid.Column="4" Padding="0" VerticalAlignment="Stretch" VerticalContentAlignment="Stretch">
-            <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="*" />
-                </Grid.RowDefinitions>
+        <Grid Grid.Column="4">
+            <ui:Card Grid.Column="4" Padding="0" VerticalAlignment="Stretch" VerticalContentAlignment="Stretch" Height="{Binding ActualHeight, RelativeSource={RelativeSource AncestorType=Grid}}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
 
-                <!-- Header -->
-                <Border Grid.Row="0" CornerRadius="8,8,0,0"
+                    <!-- Header -->
+                    <Border Grid.Row="0" CornerRadius="8,8,0,0"
                         Background="{DynamicResource ControlFillColorDefaultBrush}"
                         Padding="14,10">
-                    <TextBlock Text="{Binding ResultHeader}"
+                        <TextBlock Text="{Binding ResultHeader}"
                                FontWeight="SemiBold"/>
-                </Border>
+                    </Border>
 
-                <!-- Empty placeholder -->
-                <StackPanel Grid.Row="1"
+                    <!-- Empty placeholder -->
+                    <StackPanel Grid.Row="1"
                             HorizontalAlignment="Center" VerticalAlignment="Center"
                             Visibility="{Binding HasResults, Converter={StaticResource InvBoolVis}}">
-                    <ui:SymbolIcon Symbol="Search24" FontSize="56" Opacity="0.2"
+                        <ui:SymbolIcon Symbol="Search24" FontSize="56" Opacity="0.2"
                                    HorizontalAlignment="Center"/>
-                    <TextBlock Text="검색 결과가 여기에 표시됩니다" Opacity="0.4"
+                        <TextBlock Text="검색 결과가 여기에 표시됩니다" Opacity="0.4"
                                Margin="0,12,0,0" FontSize="14"/>
-                </StackPanel>
+                    </StackPanel>
 
-                <!-- Results -->
-                <ScrollViewer Grid.Row="1"
+                    <!-- Results -->
+                    <ScrollViewer Grid.Row="1"
                               VerticalScrollBarVisibility="Auto"
                               Padding="10"
                               MaxHeight="{Binding ActualHeight, RelativeSource={RelativeSource AncestorType=Grid}}"
                               Visibility="{Binding HasResults, Converter={StaticResource BoolVis}}">
-                    <ItemsControl ItemsSource="{Binding Results}">
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <WrapPanel />
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <!-- Result Card -->
-                                <ui:Card Margin="5" Padding="0" Width="168"
+                        <ItemsControl ItemsSource="{Binding Results}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <!-- Result Card -->
+                                    <ui:Card Margin="5" Padding="0" Width="168"
                                          VerticalAlignment="Top">
-                                    <StackPanel>
-                                        <!-- Face thumbnail -->
-                                        <Border CornerRadius="6,6,0,0"
+                                        <StackPanel>
+                                            <!-- Face thumbnail -->
+                                            <Border CornerRadius="6,6,0,0"
                                                 ClipToBounds="True"
                                                 Height="168"
                                                 Background="{DynamicResource ControlFillColorDefaultBrush}">
-                                            <Grid>
-                                                <Image Source="{Binding Image}"
+                                                <Grid>
+                                                    <Image Source="{Binding Image}"
                                                        Stretch="UniformToFill"
-                                                       Visibility="{Binding Image, Converter={StaticResource NullVis}}"/>
-                                                <ui:SymbolIcon Symbol="Person24"
+                                                       Visibility="{Binding Image, Converter={StaticResource NullVis}}" ToolTip="{Binding ImageId}"/>
+                                                    <ui:SymbolIcon Symbol="Person24"
                                                                FontSize="40" Opacity="0.25"
                                                                HorizontalAlignment="Center"
                                                                VerticalAlignment="Center"
-                                                               Visibility="{Binding Image, Converter={StaticResource NotNullVis}}"/>
-                                            </Grid>
-                                        </Border>
+                                                               Visibility="{Binding Image, Converter={StaticResource NotNullVis}}" ToolTip="{Binding ImageId}"/>
+                                                </Grid>
+                                            </Border>
 
-                                        <StackPanel Margin="10,8,10,10">
-                                            <!-- Score bar -->
-                                            <ProgressBar Value="{Binding Score, Converter={StaticResource ScorePct}}"
+                                            <StackPanel Margin="10,8,10,10">
+                                                <!-- Score bar -->
+                                                <ProgressBar Value="{Binding Score, Converter={StaticResource ScorePct}}"
                                                          Maximum="100" Height="5"
                                                          Foreground="{Binding Score, Converter={StaticResource ScorePb}}"
                                                          Background="{DynamicResource ControlFillColorDefaultBrush}"
                                                          BorderThickness="0"
                                                          Margin="0,0,0,6"/>
 
-                                            <!-- Score value -->
-                                            <TextBlock Text="{Binding ScoreText}"
+                                                <!-- Score value -->
+                                                <TextBlock Text="{Binding ScoreText}"
                                                        FontSize="20" FontWeight="Bold"
                                                        HorizontalAlignment="Center"
                                                        Foreground="{Binding Score, Converter={StaticResource ScoreFg}}"/>
 
-                                            <!-- Image ID -->
-                                            <TextBlock Text="{Binding ImageId}"
+                                                <!-- Image ID -->
+                                                <TextBlock Text="{Binding SubId}"
                                                        FontSize="9" Opacity="0.45"
                                                        TextTrimming="CharacterEllipsis"
                                                        HorizontalAlignment="Center"
                                                        Margin="0,3,0,0"
-                                                       ToolTip="{Binding ImageId}"/>
+                                                       ToolTip="Solution DB Id Info"/>
+                                            </StackPanel>
                                         </StackPanel>
-                                    </StackPanel>
-                                </ui:Card>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </ScrollViewer>
-            </Grid>
-        </ui:Card>
+                                    </ui:Card>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </Grid>
+            </ui:Card>
+        </Grid>
     </Grid>
 </Page>

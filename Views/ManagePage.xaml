@@ -130,59 +130,60 @@
         </ui:Card>
 
         <!-- ════════ DATA GRID ════════ -->
-        <ui:Card Grid.Row="2" Padding="0" VerticalAlignment="Stretch" VerticalContentAlignment="Stretch">
-            <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="*"/>
-                </Grid.RowDefinitions>
+        <Grid Grid.Row="2" >
+            <ui:Card Grid.Row="2" Padding="0" VerticalAlignment="Stretch" VerticalContentAlignment="Stretch" Height="{Binding ActualHeight, RelativeSource={RelativeSource AncestorType=Grid}}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
 
-                <!-- Card header -->
-                <Border Grid.Row="0" CornerRadius="8,8,0,0"
+                    <!-- Card header -->
+                    <Border Grid.Row="0" CornerRadius="8,8,0,0"
                         Background="{DynamicResource ControlFillColorDefaultBrush}"
                         Padding="16,10"
                         >
-                    <Grid>
-                        <StackPanel Orientation="Horizontal">
-                            <ui:SymbolIcon Symbol="PeopleList24" Margin="0,0,8,0"/>
-                            <TextBlock Text="등록된 벡터 목록"
+                        <Grid>
+                            <StackPanel Orientation="Horizontal">
+                                <ui:SymbolIcon Symbol="PeopleList24" Margin="0,0,8,0"/>
+                                <TextBlock Text="등록된 벡터 목록"
                                        FontWeight="SemiBold" VerticalAlignment="Center"/>
-                        </StackPanel>
-                        <!-- Status / page info -->
-                        <TextBlock Text="{Binding PageInfo}"
+                            </StackPanel>
+                            <!-- Status / page info -->
+                            <TextBlock Text="{Binding PageInfo}"
                                    HorizontalAlignment="Right"
                                    VerticalAlignment="Center"
                                    FontSize="12" Opacity="0.6"/>
-                    </Grid>
-                </Border>
+                        </Grid>
+                    </Border>
 
-                <!-- Loading spinner overlay -->
-                <Border Grid.Row="1" Background="#80000000" CornerRadius="0,0,8,8"
+                    <!-- Loading spinner overlay -->
+                    <Border Grid.Row="1" Background="#80000000" CornerRadius="0,0,8,8"
                         Visibility="{Binding IsLoading, Converter={StaticResource BoolVis}}"
                         Panel.ZIndex="10"
                         >
-                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                        <ui:ProgressRing IsIndeterminate="True" Width="48" Height="48"/>
-                        <TextBlock Text="데이터 조회 중..." Margin="0,12,0,0"
+                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <ui:ProgressRing IsIndeterminate="True" Width="48" Height="48"/>
+                            <TextBlock Text="데이터 조회 중..." Margin="0,12,0,0"
                                    HorizontalAlignment="Center" Opacity="0.75"/>
-                    </StackPanel>
-                </Border>
+                        </StackPanel>
+                    </Border>
 
-                <!-- Empty placeholder -->
-                <StackPanel Grid.Row="1"
+                    <!-- Empty placeholder -->
+                    <StackPanel Grid.Row="1"
                             HorizontalAlignment="Center" VerticalAlignment="Center"
                             Visibility="{Binding HasItems, Converter={StaticResource InvBoolVis}}"
                             >
-                    <ui:SymbolIcon Symbol="PeopleList24" FontSize="64" Opacity="0.18"
+                        <ui:SymbolIcon Symbol="PeopleList24" FontSize="64" Opacity="0.18"
                                    HorizontalAlignment="Center"/>
-                    <TextBlock Text="{Binding StatusMessage}"
+                        <TextBlock Text="{Binding StatusMessage}"
                                FontSize="14" Opacity="0.45"
                                Margin="0,14,0,0"
                                HorizontalAlignment="Center"/>
-                </StackPanel>
+                    </StackPanel>
 
-                <!-- Grid -->
-                <DataGrid Grid.Row="1"
+                    <!-- Grid -->
+                    <DataGrid Grid.Row="1"
                           x:Name="ItemGrid"
                           ItemsSource="{Binding Items}"
                           AutoGenerateColumns="False"
@@ -202,102 +203,102 @@
                           Visibility="{Binding HasItems, Converter={StaticResource BoolVis}}"
                           MaxHeight="{Binding ActualHeight, RelativeSource={RelativeSource AncestorType=Grid}}">
 
-                    <DataGrid.ColumnHeaderStyle>
-                        <Style TargetType="DataGridColumnHeader">
-                            <Setter Property="Background" Value="Transparent"/>
-                            <Setter Property="Padding" Value="12,0"/>
-                            <Setter Property="FontSize" Value="12"/>
-                            <Setter Property="FontWeight" Value="SemiBold"/>
-                        </Style>
-                    </DataGrid.ColumnHeaderStyle>
+                        <DataGrid.ColumnHeaderStyle>
+                            <Style TargetType="DataGridColumnHeader">
+                                <Setter Property="Background" Value="Transparent"/>
+                                <Setter Property="Padding" Value="12,0"/>
+                                <Setter Property="FontSize" Value="12"/>
+                                <Setter Property="FontWeight" Value="SemiBold"/>
+                            </Style>
+                        </DataGrid.ColumnHeaderStyle>
 
-                    <DataGrid.Columns>
+                        <DataGrid.Columns>
 
-                        <!-- Checkbox -->
-                        <DataGridTemplateColumn Header="" Width="Auto" CanUserResize="False">
-                            <DataGridTemplateColumn.CellTemplate>
-                                <DataTemplate>
-                                    <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                            <!-- Checkbox -->
+                            <DataGridTemplateColumn Header="" Width="Auto" CanUserResize="False">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                </DataTemplate>
-                            </DataGridTemplateColumn.CellTemplate>
-                        </DataGridTemplateColumn>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
 
-                        <!-- Vector ID -->
-                        <DataGridTemplateColumn Header="벡터 ID" Width="160">
-                            <DataGridTemplateColumn.CellTemplate>
-                                <DataTemplate>
-                                    <TextBlock Text="{Binding ShortId}"
+                            <!-- Vector ID -->
+                            <DataGridTemplateColumn Header="벡터 ID" Width="160">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding ShortId}"
                                                ToolTip="{Binding Id}"
                                                VerticalAlignment="Center"
                                                Margin="12,0"
                                                FontFamily="Consolas"
                                                FontSize="12"/>
-                                </DataTemplate>
-                            </DataGridTemplateColumn.CellTemplate>
-                        </DataGridTemplateColumn>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
 
-                        <!-- Image ID -->
-                        <DataGridTemplateColumn Header="이미지 ID" Width="160">
-                            <DataGridTemplateColumn.CellTemplate>
-                                <DataTemplate>
-                                    <TextBlock Text="{Binding ShortImageId}"
+                            <!-- Image ID -->
+                            <DataGridTemplateColumn Header="이미지 ID" Width="160">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding ShortImageId}"
                                                ToolTip="{Binding ImageId}"
                                                VerticalAlignment="Center"
                                                Margin="12,0"
                                                FontFamily="Consolas"
                                                FontSize="12"/>
-                                </DataTemplate>
-                            </DataGridTemplateColumn.CellTemplate>
-                        </DataGridTemplateColumn>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
 
-                        <!-- Full Vector ID (copyable) -->
-                        <DataGridTemplateColumn Header="전체 벡터 ID" Width="*">
-                            <DataGridTemplateColumn.CellTemplate>
-                                <DataTemplate>
-                                    <TextBlock Text="{Binding Id}"
+                            <!-- Full Vector ID (copyable) -->
+                            <DataGridTemplateColumn Header="전체 벡터 ID" Width="*">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Id}"
                                                VerticalAlignment="Center"
                                                Margin="12,0"
                                                FontFamily="Consolas"
                                                FontSize="11"
                                                Opacity="0.55"
                                                TextTrimming="CharacterEllipsis"/>
-                                </DataTemplate>
-                            </DataGridTemplateColumn.CellTemplate>
-                        </DataGridTemplateColumn>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
 
-                        <!-- Full Image ID -->
-                        <DataGridTemplateColumn Header="전체 이미지 ID" Width="*">
-                            <DataGridTemplateColumn.CellTemplate>
-                                <DataTemplate>
-                                    <TextBlock Text="{Binding ImageId}"
+                            <!-- Full Image ID -->
+                            <DataGridTemplateColumn Header="전체 이미지 ID" Width="*">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding ImageId}"
                                                VerticalAlignment="Center"
                                                Margin="12,0"
                                                FontFamily="Consolas"
                                                FontSize="11"
                                                Opacity="0.55"
                                                TextTrimming="CharacterEllipsis"/>
-                                </DataTemplate>
-                            </DataGridTemplateColumn.CellTemplate>
-                        </DataGridTemplateColumn>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
 
-                        <!-- Created At -->
-                        <DataGridTemplateColumn Header="등록일시" Width="160">
-                            <DataGridTemplateColumn.CellTemplate>
-                                <DataTemplate>
-                                    <TextBlock Text="{Binding CreatedAtStr}"
+                            <!-- Created At -->
+                            <DataGridTemplateColumn Header="등록일시" Width="160">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding CreatedAtStr}"
                                                VerticalAlignment="Center"
                                                Margin="12,0"
                                                FontSize="12"/>
-                                </DataTemplate>
-                            </DataGridTemplateColumn.CellTemplate>
-                        </DataGridTemplateColumn>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
 
-                    </DataGrid.Columns>
-                </DataGrid>
-            </Grid>
-        </ui:Card>
-
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </ui:Card>
+        </Grid>
         <!-- ════════ BOTTOM BAR ════════ -->
         <ui:Card Grid.Row="4" Padding="14,10">
             <Grid>

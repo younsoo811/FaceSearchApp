@@ -116,6 +116,7 @@ namespace FaceSearchApp.ViewModels
                     var vm = new SearchResultItemViewModel
                     {
                         ImageId = hit.ImageId,
+                        SubId = hit.SubId,
                         Score = hit.Score
                     };
 
@@ -193,6 +194,7 @@ namespace FaceSearchApp.ViewModels
     public partial class SearchResultItemViewModel : ObservableObject
     {
         public string ImageId { get; set; } = string.Empty;
+        public string SubId { get; set; } = string.Empty;
         public float Score { get; set; }
 
         [ObservableProperty] private BitmapImage? _image;

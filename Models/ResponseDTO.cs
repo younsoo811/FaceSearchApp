@@ -26,6 +26,7 @@ namespace FaceSearchApp.Models
     public class SearchResultItem
     {
         public string ImageId { get; set; } = string.Empty;
+        public string SubId { get; set; } = string.Empty;
         public float Score { get; set; }
     }
 
@@ -67,6 +68,7 @@ namespace FaceSearchApp.Models
     {
         public string Id { get; set; } = string.Empty;
         public string ImageId { get; set; } = string.Empty;
+        public string SubId { get; set; } = string.Empty;
         public float[] Vector { get; set; } = [];
         public DateTime CreatedAt { get; set; }
     }
