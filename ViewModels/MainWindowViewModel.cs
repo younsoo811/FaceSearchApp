@@ -14,6 +14,7 @@ namespace FaceSearchApp.ViewModels
             new NavigationViewItem("얼굴 검색",   SymbolRegular.PersonSearch24, typeof(SearchPage)),
             new NavigationViewItem("이미지 등록", SymbolRegular.PersonAdd24,    typeof(RegisterPage)),
             new NavigationViewItem("등록 관리",   SymbolRegular.PeopleList24,   typeof(ManagePage)),
+            new NavigationViewItem("얼굴 촬영", SymbolRegular.VideoPersonCall24, typeof(FaceRegistrationPage))
         ];
 
         [ObservableProperty]

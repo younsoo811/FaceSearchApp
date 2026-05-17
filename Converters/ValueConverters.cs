@@ -100,4 +100,19 @@ namespace FaceSearchApp.Converters
         public object ConvertBack(object? v, Type t, object? p, CultureInfo c)
             => throw new NotSupportedException();
     }
+
+    public class CenterPositionConverter : IMultiValueConverter
+    {
+        public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
+        {
+            if (values.Length < 2 || !(values[0] is double total) || !(values[1] is double element))
+                return 0.0;
+
+            // 부모 너비(total)에서 자식 너비(element)를 빼고 2로 나누어 중앙 위치 계산
+            return (total - element) / 2;
+        }
+
+        public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture)
+            => throw new NotImplementedException();
+    }
 }

@@ -35,18 +35,21 @@ namespace FaceSearchApp
                     // ── WPF-UI 서비스 ───                    
                     services.AddSingleton<ISnackbarService, SnackbarService>();
                     services.AddSingleton<INavigationService, NavigationService>();
+                    services.AddSingleton<IContentDialogService, ContentDialogService>();
 
                     // ── ViewModels ──────────────────────────────────────
                     services.AddTransient<SearchViewModel>();
                     services.AddTransient<RegisterViewModel>();
                     services.AddTransient<ManageViewModel>();
                     services.AddTransient<SettingViewModel>();
+                    services.AddTransient<FaceRegistrationViewModel>();
 
                     // ── Pages ───────────────────────────────────────────
                     services.AddTransient<SearchPage>();
                     services.AddTransient<RegisterPage>();
                     services.AddTransient<ManagePage>();
                     services.AddTransient<SettingPage>();
+                    services.AddTransient<FaceRegistrationPage>();
 
                     // ── Shell ───────────────────────────────────────────
                     services.AddSingleton<MainWindow>();

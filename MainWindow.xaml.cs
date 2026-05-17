@@ -17,7 +17,7 @@ namespace FaceSearchApp
         private readonly INavigationService _navigationService;
         private NavigationViewItem? _activeNav;
 
-        public MainWindow(MainWindowViewModel viewModel, ISnackbarService snackbarService, INavigationService navigationService)
+        public MainWindow(MainWindowViewModel viewModel, ISnackbarService snackbarService, INavigationService navigationService, IContentDialogService dialogService)
         {
             InitializeComponent();
 
@@ -26,6 +26,7 @@ namespace FaceSearchApp
 
             _snackbarService = snackbarService;
             _navigationService = navigationService;
+            dialogService.SetContentPresenter(RootContentDialogPresenter);
         }
 
         protected override void OnContentRendered(EventArgs e)
