@@ -11,6 +11,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -23,6 +24,9 @@ namespace FaceSearchApp.ViewModels
     public partial class VlmViewModel : ObservableObject, IDisposable
     {
         private readonly ISnackbarService _snackbarService;
+
+        private readonly string _configPath =
+            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "appsettings.json");
 
         private readonly MqttClientService _mqtt = new();
         private Guid? _currentAnalysisId;
@@ -58,8 +62,85 @@ namespace FaceSearchApp.ViewModels
         {
             _snackbarService = snackbarService;
 
+            LoadVlmSettings();
+
             _mqtt.MessageReceived += OnMqttMessageReceived;
         }
+
+        #region MQTT 설정 로드/저장
+        private void LoadVlmSettings()
+        {
+            try
+            {
+                if (!File.Exists(_configPath))
+                    return;
+
+                var json = File.ReadAllText(_configPath);
+
+                using var doc = JsonDocument.Parse(json);
+
+                if (!doc.RootElement.TryGetProperty("VlmSettings", out var vlm))
+                    return;
+
+                Broker = vlm.GetProperty("Broker").GetString() ?? Broker;
+                Port = vlm.GetProperty("Port").GetInt32();
+
+                PubTopic = vlm.GetProperty("PubTopic").GetString() ?? PubTopic;
+                SubTopic = vlm.GetProperty("SubTopic").GetString() ?? SubTopic;
+
+                Username = vlm.GetProperty("Username").GetString() ?? Username;
+                Password = vlm.GetProperty("Password").GetString() ?? Password;
+
+                UseCredentials = vlm.GetProperty("UseCredentials").GetBoolean();
+            }
+            catch
+            {
+                // 실패 시 기본값 유지
+            }
+        }
+        private void SaveVlmSettings()
+        {
+            try
+            {
+                JsonObject root;
+
+                if (File.Exists(_configPath))
+                {
+                    var json = File.ReadAllText(_configPath);
+                    root = JsonNode.Parse(json)?.AsObject() ?? new JsonObject();
+                }
+                else
+                {
+                    root = new JsonObject();
+                }
+
+                root["VlmSettings"] = new JsonObject
+                {
+                    ["Broker"] = Broker,
+                    ["Port"] = Port,
+
+                    ["PubTopic"] = PubTopic,
+                    ["SubTopic"] = SubTopic,
+
+                    ["Username"] = Username,
+                    ["Password"] = Password,
+
+                    ["UseCredentials"] = UseCredentials
+                };
+
+                var options = new JsonSerializerOptions
+                {
+                    WriteIndented = true
+                };
+
+                File.WriteAllText(_configPath, root.ToJsonString(options));
+            }
+            catch
+            {
+                // 저장 실패 무시
+            }
+        }
+        #endregion
 
         // ═══════════════════════════════════════════════════════════
         // MQTT 연결
@@ -99,6 +180,9 @@ namespace FaceSearchApp.ViewModels
                 ConnectionStatus = $"연결됨 · {Broker}:{Port}";
                 ConnectButtonText = "연결 해제";
                 StatusMessage = "MQTT 연결 성공.";
+
+                // 연결 설정 저장
+                SaveVlmSettings();
 
                 if (!string.IsNullOrWhiteSpace(SubTopic))
                 {
