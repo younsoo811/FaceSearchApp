@@ -15,16 +15,20 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media.Imaging;
+using Wpf.Ui;
+using Wpf.Ui.Controls;
 
 namespace FaceSearchApp.ViewModels
 {
     public partial class VlmViewModel : ObservableObject, IDisposable
     {
+        private readonly ISnackbarService _snackbarService;
+
         private readonly MqttClientService _mqtt = new();
         private Guid? _currentAnalysisId;
 
         // ── MQTT 설정 ──────────────────────────────────────────────
-        [ObservableProperty] private string _broker = "192.168.0.178";
+        [ObservableProperty] private string _broker = "192.168.0.53";
         [ObservableProperty] private int _port = 1883;
         [ObservableProperty] private string _pubTopic = "vlm/request";
         [ObservableProperty] private string _subTopic = "vlm/response";
@@ -40,6 +44,9 @@ namespace FaceSearchApp.ViewModels
         [ObservableProperty] private string _imageInfo = string.Empty;
         private string? _selectedImagePath;
 
+        [ObservableProperty]
+        private bool _isFireMode = true;
+
         // ── 분석 상태 ──────────────────────────────────────────────
         [ObservableProperty] private bool _isAnalyzing;
         [ObservableProperty] private string _statusMessage = string.Empty;
@@ -47,8 +54,10 @@ namespace FaceSearchApp.ViewModels
         // ── 분석 히스토리 ──────────────────────────────────────────
         public ObservableCollection<AnalysisItem> AnalysisHistory { get; } = new();
 
-        public VlmViewModel()
+        public VlmViewModel(ISnackbarService snackbarService)
         {
+            _snackbarService = snackbarService;
+
             _mqtt.MessageReceived += OnMqttMessageReceived;
         }
 
@@ -249,6 +258,8 @@ namespace FaceSearchApp.ViewModels
 
             AnalyzeCommand.NotifyCanExecuteChanged();
             CancelAnalysisCommand.NotifyCanExecuteChanged();
+
+            _snackbarService.Show("분석 요청 취소", "분석 요청이 취소 되었습니다.", ControlAppearance.Info, new SymbolIcon(SymbolRegular.Checkmark24), TimeSpan.FromSeconds(3));
         }
 
         //private bool CanCancelAnalysis() => IsAnalyzing;
@@ -301,6 +312,7 @@ namespace FaceSearchApp.ViewModels
                     // 결과 업데이트
                     targetItem.Description = response.Desc ?? string.Empty;
                     targetItem.Result = response.Result ?? string.Empty;
+                    targetItem.Decision = response.Decision ?? string.Empty;
                     targetItem.IsAnalyzing = false;
 
                     IsAnalyzing = false;
@@ -309,10 +321,13 @@ namespace FaceSearchApp.ViewModels
 
                     AnalyzeCommand.NotifyCanExecuteChanged();
                     CancelAnalysisCommand.NotifyCanExecuteChanged();
+
+                    _snackbarService.Show("분석 완료", "이미지 분석을 완료 하였습니다.", ControlAppearance.Success, new SymbolIcon(SymbolRegular.Checkmark24), TimeSpan.FromSeconds(3));
                 }
                 catch (JsonException ex)
                 {
                     StatusMessage = $"JSON 파싱 오류: {ex.Message}";
+                    _snackbarService.Show("분석 실패", ex.Message, ControlAppearance.Danger, new SymbolIcon(SymbolRegular.ErrorCircle24), TimeSpan.FromSeconds(3));
                 }
             });
         }
