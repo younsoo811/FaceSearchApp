@@ -5,6 +5,7 @@ using FaceSearchApp.Services;
 using Microsoft.Win32;
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Data;
 using System.IO;
 using System.Linq;
@@ -17,86 +18,43 @@ using System.Windows.Media.Imaging;
 
 namespace FaceSearchApp.ViewModels
 {
-    public enum AnalysisState { Idle, Analyzing, Complete }
-
     public partial class VlmViewModel : ObservableObject, IDisposable
     {
         private readonly MqttClientService _mqtt = new();
-        private AnalysisState _state = AnalysisState.Idle;
-        private string? _selectedImagePath;
+        private Guid? _currentAnalysisId;
 
         // ── MQTT 설정 ──────────────────────────────────────────────
-        [ObservableProperty]
-        private string _broker = "192.168.0.178";
-
-        [ObservableProperty]
-        private int _port = 1883;
-
-        [ObservableProperty]
-        private string _pubTopic = "vlm/request";
-
-        [ObservableProperty]
-        private string _subTopic = "vlm/response";
-
-        [ObservableProperty]
-        private bool _isConnected;
-
-        [ObservableProperty]
-        private string _connectionStatus = "연결되지 않음";
-
-        [ObservableProperty]
-        private string _connectButtonText = "연결";
-
-        [ObservableProperty]
-        private string _username = "seo_ai";
-
-        [ObservableProperty]
-        private string _password = "qrqvud3";
-
-        [ObservableProperty]
-        private bool _useCredentials = true;
+        [ObservableProperty] private string _broker = "192.168.0.178";
+        [ObservableProperty] private int _port = 1883;
+        [ObservableProperty] private string _pubTopic = "vlm/request";
+        [ObservableProperty] private string _subTopic = "vlm/response";
+        [ObservableProperty] private string _username = "seo_ai";
+        [ObservableProperty] private string _password = "qrqvud3";
+        [ObservableProperty] private bool _useCredentials = true;
+        [ObservableProperty] private bool _isConnected;
+        [ObservableProperty] private string _connectionStatus = "연결되지 않음";
+        [ObservableProperty] private string _connectButtonText = "연결";
 
         // ── 이미지 선택 ────────────────────────────────────────────
-        [ObservableProperty]
-        private BitmapImage? _selectedImage;
+        [ObservableProperty] private BitmapImage? _queryImage;
+        [ObservableProperty] private string _imageInfo = string.Empty;
+        private string? _selectedImagePath;
 
-        [ObservableProperty]
-        private string _selectedFileName = "선택된 파일 없음";
+        // ── 분석 상태 ──────────────────────────────────────────────
+        [ObservableProperty] private bool _isAnalyzing;
+        [ObservableProperty] private string _statusMessage = string.Empty;
 
-        // ── 분석 결과 (우측 패널) ──────────────────────────────────
-        [ObservableProperty]
-        private BitmapImage? _analysisImage;
-
-        [ObservableProperty]
-        private string _description = string.Empty;
-
-        [ObservableProperty]
-        private string _resultText = string.Empty;
-
-        [ObservableProperty]
-        private string _statusMessage = string.Empty;
-
-        // ── 상태 파생 프로퍼티 ─────────────────────────────────────
-        public bool IsIdle => _state == AnalysisState.Idle;
-        public bool IsAnalyzing => _state == AnalysisState.Analyzing;
-        public bool HasResult => _state == AnalysisState.Complete;
-        public bool IsActiveAnalysis => !IsIdle;
-
-        private void SetState(AnalysisState state)
-        {
-            _state = state;
-            OnPropertyChanged(nameof(IsIdle));
-            OnPropertyChanged(nameof(IsAnalyzing));
-            OnPropertyChanged(nameof(HasResult));
-            OnPropertyChanged(nameof(IsActiveAnalysis));
-        }
+        // ── 분석 히스토리 ──────────────────────────────────────────
+        public ObservableCollection<AnalysisItem> AnalysisHistory { get; } = new();
 
         public VlmViewModel()
         {
             _mqtt.MessageReceived += OnMqttMessageReceived;
         }
 
-        // ── Commands ───────────────────────────────────────────────
+        // ═══════════════════════════════════════════════════════════
+        // MQTT 연결
+        // ═══════════════════════════════════════════════════════════
 
         [RelayCommand]
         private async Task ToggleConnectionAsync()
@@ -125,6 +83,7 @@ namespace FaceSearchApp.ViewModels
                 Broker, Port,
                 username: UseCredentials ? Username : null,
                 password: UseCredentials ? Password : null);
+
             if (success)
             {
                 IsConnected = true;
@@ -147,72 +106,162 @@ namespace FaceSearchApp.ViewModels
             }
         }
 
+        // ═══════════════════════════════════════════════════════════
+        // 이미지 선택
+        // ═══════════════════════════════════════════════════════════
+
         [RelayCommand]
         private void SelectImage()
         {
-            var dialog = new OpenFileDialog
+            var dialog = new Microsoft.Win32.OpenFileDialog
             {
                 Title = "분석할 이미지 선택",
                 Filter = "이미지 파일|*.jpg;*.jpeg;*.png;*.bmp;*.gif;*.webp|모든 파일|*.*",
                 Multiselect = false
             };
 
-            if (dialog.ShowDialog() != true) return;
+            if (dialog.ShowDialog() == true)
+                LoadImageFromPath(dialog.FileName);
+        }
 
-            _selectedImagePath = dialog.FileName;
-            SelectedFileName = Path.GetFileName(_selectedImagePath);
-            SelectedImage = LoadBitmapImage(_selectedImagePath);
-            StatusMessage = $"이미지 선택됨: {SelectedFileName}";
+        public void LoadImageFromPath(string path)
+        {
+            if (!File.Exists(path))
+            {
+                StatusMessage = "파일을 찾을 수 없습니다.";
+                return;
+            }
+
+            var validExtensions = new[] { ".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp" };
+            var ext = Path.GetExtension(path).ToLowerInvariant();
+            if (!validExtensions.Contains(ext))
+            {
+                StatusMessage = "지원하지 않는 이미지 형식입니다.";
+                return;
+            }
+
+            try
+            {
+                _selectedImagePath = path;
+                QueryImage = LoadBitmapImage(path);
+
+                var fileInfo = new FileInfo(path);
+                var sizeKB = fileInfo.Length / 1024.0;
+                var sizeStr = sizeKB < 1024
+                    ? $"{sizeKB:F1} KB"
+                    : $"{sizeKB / 1024.0:F2} MB";
+
+                ImageInfo = $"{Path.GetFileName(path)} · {QueryImage.PixelWidth}×{QueryImage.PixelHeight} · {sizeStr}";
+                StatusMessage = "이미지가 선택되었습니다.";
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"이미지 로드 실패: {ex.Message}";
+            }
         }
 
         [RelayCommand]
+        private void ClearQuery()
+        {
+            QueryImage = null;
+            ImageInfo = string.Empty;
+            _selectedImagePath = null;
+            StatusMessage = "이미지가 초기화되었습니다.";
+        }
+
+        // ═══════════════════════════════════════════════════════════
+        // 분석 요청
+        // ═══════════════════════════════════════════════════════════
+
+        [RelayCommand(CanExecute = nameof(CanAnalyze))]
         private async Task AnalyzeAsync()
         {
-            if (!_mqtt.IsConnected)
-            {
-                StatusMessage = "먼저 MQTT 브로커에 연결하세요.";
+            if (!_mqtt.IsConnected || _selectedImagePath is null || IsAnalyzing)
                 return;
-            }
-            if (_selectedImagePath is null)
-            {
-                StatusMessage = "분석할 이미지를 선택하세요.";
-                return;
-            }
-            if (string.IsNullOrWhiteSpace(PubTopic))
-            {
-                StatusMessage = "Publish 토픽을 입력하세요.";
-                return;
-            }
 
             try
             {
                 // 이미지 → Base64
                 var bytes = await File.ReadAllBytesAsync(_selectedImagePath);
                 var base64 = Convert.ToBase64String(bytes);
-                var payload = JsonSerializer.Serialize(new { @base64 = base64 });
 
-                // 우측 패널에 이미지 세팅 + 로딩 상태
-                AnalysisImage = SelectedImage;
-                Description = string.Empty;
-                ResultText = string.Empty;
-                SetState(AnalysisState.Analyzing);
+                // 새 분석 아이템 생성
+                var item = new AnalysisItem
+                {
+                    Image = QueryImage,
+                    ImageInfo = ImageInfo,
+                    IsAnalyzing = true
+                };
 
-                // MQTT Publish
+                // 히스토리 맨 위에 추가
+                AnalysisHistory.Insert(0, item);
+                _currentAnalysisId = item.Id;
+                IsAnalyzing = true;
+
+                // MQTT Publish (ID 포함)
+                var payload = JsonSerializer.Serialize(new
+                {
+                    id = item.Id.ToString(),
+                    @base64 = base64
+                });
+
                 await _mqtt.PublishAsync(PubTopic, payload);
-                StatusMessage = $"분석 요청 전송 완료 → [{PubTopic}]";
+                StatusMessage = $"분석 요청 완료 (분석 진행 중...)";
+
+                AnalyzeCommand.NotifyCanExecuteChanged();
             }
             catch (Exception ex)
             {
                 StatusMessage = $"전송 오류: {ex.Message}";
-                SetState(AnalysisState.Idle);
+                if (_currentAnalysisId.HasValue)
+                {
+                    var item = AnalysisHistory.FirstOrDefault(x => x.Id == _currentAnalysisId.Value);
+                    if (item is not null)
+                        AnalysisHistory.Remove(item);
+                }
+                IsAnalyzing = false;
+                _currentAnalysisId = null;
+                AnalyzeCommand.NotifyCanExecuteChanged();
             }
         }
 
-        // ── MQTT 수신 ──────────────────────────────────────────────
+        //private bool CanAnalyze()
+        //    => _mqtt.IsConnected && QueryImage is not null && !IsAnalyzing;
+        private bool CanAnalyze()
+    => true;
+
+        // ═══════════════════════════════════════════════════════════
+        // 분석 취소
+        // ═══════════════════════════════════════════════════════════
+
+        [RelayCommand(CanExecute = nameof(CanCancelAnalysis))]
+        private void CancelAnalysis()
+        {
+            if (!_currentAnalysisId.HasValue) return;
+
+            var item = AnalysisHistory.FirstOrDefault(x => x.Id == _currentAnalysisId.Value);
+            if (item is not null)
+                AnalysisHistory.Remove(item);
+
+            IsAnalyzing = false;
+            _currentAnalysisId = null;
+            StatusMessage = "분석 요청이 취소되었습니다.";
+
+            AnalyzeCommand.NotifyCanExecuteChanged();
+            CancelAnalysisCommand.NotifyCanExecuteChanged();
+        }
+
+        //private bool CanCancelAnalysis() => IsAnalyzing;
+        private bool CanCancelAnalysis() => true;
+
+        // ═══════════════════════════════════════════════════════════
+        // MQTT 수신
+        // ═══════════════════════════════════════════════════════════
 
         private void OnMqttMessageReceived(string topic, string payload)
         {
-            if (!topic.Equals(SubTopic, StringComparison.OrdinalIgnoreCase)) return;
+            if (!topic.Equals(SubTopic, StringComparison.OrdinalIgnoreCase))
+                return;
 
             Application.Current.Dispatcher.Invoke(() =>
             {
@@ -225,20 +274,52 @@ namespace FaceSearchApp.ViewModels
                         return;
                     }
 
-                    Description = response.Desc ?? string.Empty;
-                    ResultText = response.Result ?? string.Empty;
-                    SetState(AnalysisState.Complete);
-                    StatusMessage = $"분석 결과 수신 완료 ← [{topic}]";
+                    // ID로 매칭 (또는 첫 번째 분석 중인 항목)
+                    AnalysisItem? targetItem = null;
+
+                    // 응답에 id가 있으면 매칭 시도
+                    if (payload.Contains("\"id\""))
+                    {
+                        var doc = JsonDocument.Parse(payload);
+                        if (doc.RootElement.TryGetProperty("id", out var idProp))
+                        {
+                            var idStr = idProp.GetString();
+                            if (Guid.TryParse(idStr, out var guid))
+                                targetItem = AnalysisHistory.FirstOrDefault(x => x.Id == guid);
+                        }
+                    }
+
+                    // ID 매칭 실패 시 현재 분석 중인 항목 찾기
+                    targetItem ??= AnalysisHistory.FirstOrDefault(x => x.IsAnalyzing);
+
+                    if (targetItem is null)
+                    {
+                        StatusMessage = "분석 결과를 매칭할 항목이 없습니다.";
+                        return;
+                    }
+
+                    // 결과 업데이트
+                    targetItem.Description = response.Desc ?? string.Empty;
+                    targetItem.Result = response.Result ?? string.Empty;
+                    targetItem.IsAnalyzing = false;
+
+                    IsAnalyzing = false;
+                    _currentAnalysisId = null;
+                    StatusMessage = $"분석 결과 수신 완료";
+
+                    AnalyzeCommand.NotifyCanExecuteChanged();
+                    CancelAnalysisCommand.NotifyCanExecuteChanged();
                 }
                 catch (JsonException ex)
                 {
                     StatusMessage = $"JSON 파싱 오류: {ex.Message}";
-                    SetState(AnalysisState.Complete); // 로딩 해제
                 }
             });
         }
 
-        // ── 헬퍼 ──────────────────────────────────────────────────
+        // ═══════════════════════════════════════════════════════════
+        // 헬퍼
+        // ═══════════════════════════════════════════════════════════
 
         private static BitmapImage LoadBitmapImage(string path)
         {
@@ -246,6 +327,7 @@ namespace FaceSearchApp.ViewModels
             bitmap.BeginInit();
             bitmap.UriSource = new Uri(path, UriKind.Absolute);
             bitmap.CacheOption = BitmapCacheOption.OnLoad;
+            bitmap.DecodePixelWidth = 800; // 메모리 최적화
             bitmap.EndInit();
             bitmap.Freeze();
             return bitmap;
