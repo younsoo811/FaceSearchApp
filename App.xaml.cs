@@ -36,6 +36,7 @@ namespace FaceSearchApp
                     services.AddSingleton<ISnackbarService, SnackbarService>();
                     services.AddSingleton<INavigationService, NavigationService>();
                     services.AddSingleton<IContentDialogService, ContentDialogService>();
+                    services.AddSingleton<MqttClientService>();
 
                     // ── ViewModels ──────────────────────────────────────
                     services.AddTransient<SearchViewModel>();
@@ -43,6 +44,7 @@ namespace FaceSearchApp
                     services.AddTransient<ManageViewModel>();
                     services.AddTransient<SettingViewModel>();
                     services.AddTransient<FaceRegistrationViewModel>();
+                    services.AddSingleton<VlmViewModel>();
 
                     // ── Pages ───────────────────────────────────────────
                     services.AddTransient<SearchPage>();
@@ -50,6 +52,7 @@ namespace FaceSearchApp
                     services.AddTransient<ManagePage>();
                     services.AddTransient<SettingPage>();
                     services.AddTransient<FaceRegistrationPage>();
+                    services.AddSingleton<VlmPage>();
 
                     // ── Shell ───────────────────────────────────────────
                     services.AddSingleton<MainWindow>();

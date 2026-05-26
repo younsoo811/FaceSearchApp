@@ -1,0 +1,375 @@
+﻿<Page x:Class="FaceSearchApp.Views.VlmPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+      xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+      xmlns:local="clr-namespace:FaceSearchApp.Views"
+      xmlns:converters="clr-namespace:FaceSearchApp.Converters"
+      xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+      mc:Ignorable="d" 
+      d:DesignHeight="700" d:DesignWidth="800"
+      Title="VLM 이미지 분석">
+
+    <Page.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
+        <converters:InverseBoolToVisibilityConverter x:Key="InvBoolToVis" />
+    </Page.Resources>
+
+    <Grid Margin="16">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="320" MinWidth="280" />
+            <ColumnDefinition Width="8" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <!-- ═══════════════════════════════════════════════════ -->
+        <!-- 좌측 패널: 설정 + 이미지 선택                        -->
+        <!-- ═══════════════════════════════════════════════════ -->
+        <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+
+                <!-- MQTT 설정 카드 -->
+                <ui:Card>
+                    <StackPanel>
+                        <TextBlock
+                            Margin="0,0,0,12"
+                            FontSize="13"
+                            FontWeight="SemiBold"
+                            Text="MQTT 설정" />
+
+                        <StackPanel Margin="0 0 0 10">
+                            <TextBlock FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Text="브로커 주소" />
+                            <ui:TextBox
+                                PlaceholderText="예: 192.168.1.100"
+                                Text="{Binding Broker, UpdateSourceTrigger=PropertyChanged}" />
+                        </StackPanel>
+
+                        <StackPanel Margin="0 0 0 10">
+                            <TextBlock FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Text="포트" />
+                            <ui:NumberBox
+                                Maximum="65535"
+                                Minimum="1"
+                                Value="{Binding Port}" />
+                        </StackPanel>
+
+                        <!-- 인증 사용 여부 토글 -->
+                        <ui:ToggleSwitch Content="브로커 인증 사용" IsChecked="{Binding UseCredentials}" Margin="0 0 0 10"/>
+
+                        <!-- 인증 정보 입력 (UseCredentials=True 일 때만 표시) -->
+                        <StackPanel Visibility="{Binding UseCredentials, Converter={StaticResource BoolToVis}}" Margin="0 0 0 10">
+                            <StackPanel Margin="0 0 0 10">
+                                <TextBlock
+                                    FontSize="11"
+                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                    Text="아이디 (Username)" />
+                                <ui:TextBox
+                                    PlaceholderText="브로커 아이디"
+                                    Text="{Binding Username, UpdateSourceTrigger=PropertyChanged}" />
+                            </StackPanel>
+
+                            <StackPanel Margin="0 0 0 10">
+                                <TextBlock
+                                    FontSize="11"
+                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                    Text="비밀번호 (Password)" />
+                                <ui:PasswordBox
+                                    x:Name="PasswordBox"
+                                    Height="32"
+                                    Padding="10,0"
+                                    VerticalContentAlignment="Center"
+                                    PlaceholderText="브로커 비밀번호"/>
+                            </StackPanel>
+
+                        </StackPanel>
+
+                        <StackPanel Margin="0 0 0 10">
+                            <TextBlock FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Text="Publish 토픽" />
+                            <ui:TextBox
+                                PlaceholderText="예: vlm/request"
+                                Text="{Binding PubTopic, UpdateSourceTrigger=PropertyChanged}" />
+                        </StackPanel>
+
+                        <StackPanel>
+                            <TextBlock FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Text="Subscribe 토픽" />
+                            <ui:TextBox
+                                PlaceholderText="예: vlm/response"
+                                Text="{Binding SubTopic, UpdateSourceTrigger=PropertyChanged}" />
+                        </StackPanel>
+
+                        <!-- 연결 상태 표시 -->
+                        <Border
+                            Padding="8,6"
+                            Background="{DynamicResource ControlFillColorDefaultBrush}"
+                            CornerRadius="6">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Ellipse
+                                    Width="8"
+                                    Height="8"
+                                    Margin="0,0,8,0"
+                                    VerticalAlignment="Center">
+                                    <Ellipse.Style>
+                                        <Style TargetType="Ellipse">
+                                            <Setter Property="Fill" Value="#E74C3C" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsConnected}" Value="True">
+                                                    <Setter Property="Fill" Value="#2ECC71" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Ellipse.Style>
+                                </Ellipse>
+                                <TextBlock
+                                    Grid.Column="1"
+                                    VerticalAlignment="Center"
+                                    FontSize="11"
+                                    Text="{Binding ConnectionStatus}"
+                                    TextTrimming="CharacterEllipsis" />
+                            </Grid>
+                        </Border>
+
+                        <ui:Button
+                            HorizontalAlignment="Stretch"
+                            Command="{Binding ToggleConnectionCommand}"
+                            Content="{Binding ConnectButtonText}">
+                            <ui:Button.Style>
+                                <Style BasedOn="{StaticResource {x:Type ui:Button}}" TargetType="ui:Button">
+                                    <Setter Property="Appearance" Value="Primary" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsConnected}" Value="True">
+                                            <Setter Property="Appearance" Value="Secondary" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </ui:Button.Style>
+                        </ui:Button>
+                    </StackPanel>
+                </ui:Card>
+
+                <!-- 이미지 분석 카드 -->
+                <ui:Card>
+                    <StackPanel>
+                        <TextBlock
+                            FontSize="13"
+                            FontWeight="SemiBold"
+                            Text="이미지 분석" />
+
+                        <!-- 이미지 선택 버튼 -->
+                        <ui:Button
+                            HorizontalAlignment="Stretch"
+                            Command="{Binding SelectImageCommand}"
+                            Icon="{ui:SymbolIcon ImageAdd24}">
+                            <ui:Button.Content>
+                                <TextBlock Text="이미지 선택" />
+                            </ui:Button.Content>
+                        </ui:Button>
+
+                        <!-- 선택된 파일명 -->
+                        <TextBlock
+                            FontSize="11"
+                            Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                            Text="{Binding SelectedFileName}"
+                            TextTrimming="CharacterEllipsis" />
+
+                        <!-- 선택된 이미지 미리보기 -->
+                        <Border
+                            Height="140"
+                            Background="{DynamicResource ControlFillColorDefaultBrush}"
+                            CornerRadius="8"
+                            Visibility="{Binding SelectedImage, Converter={StaticResource BoolToVis}, TargetNullValue=Collapsed, FallbackValue=Collapsed}">
+                            <Image
+                                Margin="4"
+                                RenderOptions.BitmapScalingMode="HighQuality"
+                                Source="{Binding SelectedImage}"
+                                Stretch="Uniform" />
+                        </Border>
+
+                        <!-- 선택 안 됨 플레이스홀더 -->
+                        <Border
+                            Height="80"
+                            Background="{DynamicResource ControlFillColorDefaultBrush}"
+                            CornerRadius="8"
+                            Visibility="{Binding SelectedImage, Converter={StaticResource InvBoolToVis}, TargetNullValue=Visible, FallbackValue=Visible}">
+                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <ui:SymbolIcon
+                                    HorizontalAlignment="Center"
+                                    FontSize="28"
+                                    Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                    Symbol="Image24" />
+                                <TextBlock
+                                    Margin="0,4,0,0"
+                                    FontSize="11"
+                                    Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                    Text="이미지를 선택하세요" />
+                            </StackPanel>
+                        </Border>
+
+                        <!-- 분석 요청 버튼 -->
+                        <ui:Button
+                            HorizontalAlignment="Stretch"
+                            Appearance="Primary"
+                            Command="{Binding AnalyzeCommand}"
+                            Icon="{ui:SymbolIcon Send24}">
+                            <ui:Button.Content>
+                                <TextBlock Text="분석 요청" />
+                            </ui:Button.Content>
+                        </ui:Button>
+                    </StackPanel>
+                </ui:Card>
+
+                <!-- 상태 메시지 -->
+                <Border
+                    Padding="10,8"
+                    Background="{DynamicResource ControlFillColorDefaultBrush}"
+                    CornerRadius="6"
+                    Visibility="{Binding StatusMessage, Converter={StaticResource BoolToVis}, TargetNullValue=Collapsed, FallbackValue=Collapsed}">
+                    <TextBlock
+                        FontSize="11"
+                        Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                        Text="{Binding StatusMessage}"
+                        TextWrapping="Wrap" />
+                </Border>
+
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- 스플리터 -->
+        <GridSplitter
+            Grid.Column="1"
+            Width="2"
+            HorizontalAlignment="Center"
+            Background="{DynamicResource DividerStrokeColorDefaultBrush}" />
+
+        <!-- ═══════════════════════════════════════════════════ -->
+        <!-- 우측 패널: 분석 결과                                  -->
+        <!-- ═══════════════════════════════════════════════════ -->
+        <Grid Grid.Column="2">
+
+            <!-- ① Idle 상태: 안내 메시지 -->
+            <StackPanel
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Visibility="{Binding IsIdle, Converter={StaticResource BoolToVis}}">
+                <ui:SymbolIcon
+                    HorizontalAlignment="Center"
+                    FontSize="64"
+                    Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                    Symbol="ImageSearch24" />
+                <TextBlock
+                    FontSize="15"
+                    Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                    Text="이미지를 선택하고 분석을 요청하세요"
+                    TextAlignment="Center" />
+                <TextBlock
+                    FontSize="12"
+                    Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                    Text="MQTT를 통해 결과가 자동으로 표시됩니다"
+                    TextAlignment="Center" />
+            </StackPanel>
+
+            <!-- ② 분석 중 / 결과 패널 -->
+            <Grid Visibility="{Binding IsActiveAnalysis, Converter={StaticResource BoolToVis}}" MaxHeight="{Binding ActualHeight, RelativeSource={RelativeSource AncestorType=Grid}}">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*" MinHeight="200" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <!-- 이미지 영역 -->
+                <Grid>
+                    <ui:Card Grid.Row="0" Padding="8">
+                        <Grid>
+                            <Image
+                            RenderOptions.BitmapScalingMode="HighQuality"
+                            Source="{Binding AnalysisImage}"
+                            Stretch="Uniform" />
+
+                            <!-- 분석 중 오버레이 -->
+                            <Border
+                            Background="#88000000"
+                            CornerRadius="8"
+                            Visibility="{Binding IsAnalyzing, Converter={StaticResource BoolToVis}}">
+                                <StackPanel
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                >
+                                    <ui:ProgressRing
+                                    Width="52"
+                                    Height="52"
+                                    HorizontalAlignment="Center"
+                                    IsIndeterminate="True" />
+                                    <TextBlock
+                                    FontSize="14"
+                                    FontWeight="SemiBold"
+                                    Foreground="White"
+                                    Text="분석 중..."
+                                    TextAlignment="Center" />
+                                    <TextBlock
+                                    FontSize="12"
+                                    Foreground="#BBFFFFFF"
+                                    Text="MQTT 응답을 기다리고 있습니다"
+                                    TextAlignment="Center" />
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+                    </ui:Card>
+                </Grid>
+
+                <!-- 결과 영역 -->
+                <StackPanel
+                    Grid.Row="1"
+                    Margin="0,12,0,0"
+                    Visibility="{Binding HasResult, Converter={StaticResource BoolToVis}}">
+
+                    <!-- 결과값 배지 -->
+                    <ui:Card Padding="12,10">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Border
+                                Padding="10,4"
+                                Background="{DynamicResource SystemAccentColorPrimaryBrush}"
+                                CornerRadius="4">
+                                <TextBlock
+                                    FontSize="12"
+                                    FontWeight="Bold"
+                                    Foreground="White"
+                                    Text="Result" />
+                            </Border>
+                            <TextBlock
+                                Grid.Column="1"
+                                Margin="12,0,0,0"
+                                VerticalAlignment="Center"
+                                FontSize="14"
+                                FontWeight="SemiBold"
+                                Text="{Binding ResultText}"
+                                TextWrapping="Wrap" />
+                        </Grid>
+                    </ui:Card>
+
+                    <!-- 이미지 설명 -->
+                    <ui:Card Padding="12">
+                        <StackPanel>
+                            <TextBlock
+                                FontSize="11"
+                                FontWeight="SemiBold"
+                                Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                Text="이미지 설명 (desc)" />
+                            <TextBlock
+                                FontSize="13"
+                                LineHeight="22"
+                                Text="{Binding Description}"
+                                TextWrapping="Wrap" />
+                        </StackPanel>
+                    </ui:Card>
+
+                </StackPanel>
+            </Grid>
+
+        </Grid>
+    </Grid>
+</Page>
