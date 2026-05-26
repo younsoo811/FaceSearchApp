@@ -270,7 +270,14 @@ namespace FaceSearchApp.ViewModels
         private async Task AnalyzeAsync()
         {
             if (!_mqtt.IsConnected || _selectedImagePath is null || IsAnalyzing)
+            {
+                if (!_mqtt.IsConnected)
+                {
+                    StatusMessage = $"서버 연결 상태 오류";
+                    _snackbarService.Show("분석 요청 실패", "서버 연결 상태를 확인해주세요.", ControlAppearance.Danger, new SymbolIcon(SymbolRegular.ErrorCircle24), TimeSpan.FromSeconds(3));
+                }
                 return;
+            }
 
             try
             {

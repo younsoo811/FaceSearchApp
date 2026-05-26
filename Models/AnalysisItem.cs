@@ -49,7 +49,7 @@ namespace FaceSearchApp.Models
             OnPropertyChanged(nameof(FireBorderBrush));
         }
 
-        // Result 값 변경 시 자동 타이핑 시작
+        // Description 값 변경 시 자동 타이핑 시작
         partial void OnDescriptionChanged(string value)
         {
             StartTypingAnimation(value);
