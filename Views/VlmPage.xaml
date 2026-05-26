@@ -304,7 +304,7 @@
         <!-- ═══════════════════════════════════════════════════ -->
         <!-- 우측 패널: 분석 결과 히스토리                        -->
         <!-- ═══════════════════════════════════════════════════ -->
-        <Grid Grid.Column="2">
+        <Grid Grid.Column="2" Margin="10 0 0 0">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
@@ -312,6 +312,16 @@
 
             <!--  제어 버튼  -->
             <StackPanel Grid.Row="0" Margin="0,0,0,12" Orientation="Horizontal" MaxHeight="{Binding ActualHeight, RelativeSource={RelativeSource AncestorType=Grid}}">
+                <Border>
+                    <TextBlock
+                        Margin="0,0,10,0"
+                        FontSize="20"
+                        FontWeight="SemiBold"
+                        VerticalAlignment="Center"
+                        Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                        Text="VLM 분석 결과" />
+                </Border>
+
                 <Border
                     Padding="10"
                     Background="{DynamicResource ControlFillColorDefaultBrush}"
@@ -332,6 +342,14 @@
                     Icon="{ui:SymbolIcon DismissCircle24}"
                     Visibility="{Binding IsAnalyzing, Converter={StaticResource BoolToVis}}" />
             </StackPanel>
+
+            <ui:Button Command="{Binding ClearHistoryCommand}"
+                       Appearance="Secondary"
+                       Icon="{ui:SymbolIcon Delete24}"
+                       Content="분석 기록 초기화"
+                       HorizontalAlignment="Right"
+                       Margin="0,0,0,12"
+                       />
 
             <!--  분석 히스토리  -->
             <Grid Grid.Row="1">
@@ -431,22 +449,6 @@
                                                             Foreground="White"
                                                             Text="{Binding Result}" />
                                                     </Border>
-
-                                                    <!-- 화재 여부 배지 --><!--
-                                                    <Border
-                                                        Margin="8,0,0,0"
-                                                        Padding="10,5"
-                                                        HorizontalAlignment="Left"
-                                                        Background="{Binding FireBorderBrush}"
-                                                        CornerRadius="6"
-                                                        Visibility="{Binding DataContext.IsFireMode, RelativeSource={RelativeSource AncestorType=Page}, Converter={StaticResource BoolToVis}}">
-
-                                                        <TextBlock
-                                                            FontSize="12"
-                                                            FontWeight="SemiBold"
-                                                            Foreground="White"
-                                                            Text="{Binding FireLabel}" />
-                                                    </Border>-->
                                                 </StackPanel>
 
                                                 <!--  설명  -->
@@ -464,7 +466,7 @@
                                                         <TextBlock
                                                             FontSize="12"
                                                             LineHeight="20"
-                                                            Text="{Binding Description}"
+                                                            Text="{Binding AnimatedDescription}"
                                                             TextWrapping="Wrap" />
                                                     </StackPanel>
                                                 </Border>

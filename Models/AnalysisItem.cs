@@ -6,12 +6,16 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 
 namespace FaceSearchApp.Models
 {
     public partial class AnalysisItem : ObservableObject
     {
         public Guid Id { get; } = Guid.NewGuid();
+
+        private DispatcherTimer? _typingTimer;
+        private int _typingIndex;
 
         [ObservableProperty]
         private BitmapImage? _image;
@@ -24,6 +28,10 @@ namespace FaceSearchApp.Models
 
         [ObservableProperty]
         private string _description = string.Empty;
+
+        // 타이핑 표시용
+        [ObservableProperty]
+        private string _animatedDescription = string.Empty;
 
         [ObservableProperty]
         private string _result = string.Empty;
@@ -40,6 +48,44 @@ namespace FaceSearchApp.Models
             OnPropertyChanged(nameof(FireBackground));
             OnPropertyChanged(nameof(FireBorderBrush));
         }
+
+        // Result 값 변경 시 자동 타이핑 시작
+        partial void OnDescriptionChanged(string value)
+        {
+            StartTypingAnimation(value);
+        }
+
+
+        private void StartTypingAnimation(string text)
+        {
+            _typingTimer?.Stop();
+
+            AnimatedDescription = string.Empty;
+            _typingIndex = 0;
+
+            if (string.IsNullOrWhiteSpace(text))
+                return;
+
+            _typingTimer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromMilliseconds(5)
+            };
+
+            _typingTimer.Tick += (s, e) =>
+            {
+                if (_typingIndex >= text.Length)
+                {
+                    _typingTimer.Stop();
+                    return;
+                }
+
+                AnimatedDescription += text[_typingIndex];
+                _typingIndex++;
+            };
+
+            _typingTimer.Start();
+        }
+
         public string FireLabel => Decision switch
         {
             "0" => "오탐",

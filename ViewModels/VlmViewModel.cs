@@ -49,7 +49,7 @@ namespace FaceSearchApp.ViewModels
 
         // ── 분석 상태 ──────────────────────────────────────────────
         [ObservableProperty] private bool _isAnalyzing;
-        [ObservableProperty] private string _statusMessage = string.Empty;
+        [ObservableProperty] private string _statusMessage = "VLM 서버 연결 상태를 확인해주세요.";
 
         // ── 분석 히스토리 ──────────────────────────────────────────
         public ObservableCollection<AnalysisItem> AnalysisHistory { get; } = new();
@@ -264,6 +264,14 @@ namespace FaceSearchApp.ViewModels
 
         //private bool CanCancelAnalysis() => IsAnalyzing;
         private bool CanCancelAnalysis() => true;
+
+        [RelayCommand]
+        private void ClearHistory()
+        {
+            CancelAnalysis();
+            AnalysisHistory.Clear();
+            StatusMessage = "분석 기록이 초기화되었습니다.";
+        }
 
         // ═══════════════════════════════════════════════════════════
         // MQTT 수신
