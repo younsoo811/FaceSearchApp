@@ -7,7 +7,7 @@
       xmlns:converters="clr-namespace:FaceSearchApp.Converters"
       xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
       mc:Ignorable="d" 
-      d:DesignHeight="700" d:DesignWidth="800"
+      d:DesignHeight="900" d:DesignWidth="1000"
       Title="VLM 이미지 분석">
 
     <Page.Resources>
@@ -285,10 +285,15 @@
                                 <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
 
-                            <ui:ToggleSwitch
+                            <!--<ui:ToggleSwitch
                                 Margin="0,0,0,10"
-                                Content="오탐 여부 표시"
-                                IsChecked="{Binding IsFireMode}" />
+                                Content="화재 여부 표시"
+                                IsChecked="{Binding IsFireMode}" />-->
+                            <ui:ToggleSwitch
+                                HorizontalAlignment="Left"
+                                Margin="0,0,0,10"
+                                Content="분석 연속 요청"
+                                IsChecked="{Binding IsContinuousMode}" />
                             <ui:Button
                                 Grid.Row="1"
                                 Margin="0 0 0 0"
@@ -348,13 +353,19 @@
                     Visibility="{Binding IsAnalyzing, Converter={StaticResource BoolToVis}}" />
             </StackPanel>
 
-            <ui:Button Command="{Binding ClearHistoryCommand}"
+            <StackPanel Margin="0 0 0 12" Orientation="Horizontal" HorizontalAlignment="Right">
+                <ui:ToggleSwitch
+                    Margin="0,0,12,0"
+                    Content="화재 여부 표시"
+                    IsChecked="{Binding IsFireMode}" />
+                <ui:Button Command="{Binding ClearHistoryCommand}"
                        Appearance="Secondary"
                        Icon="{ui:SymbolIcon Delete24}"
                        Content="분석 기록 초기화"
                        HorizontalAlignment="Right"
-                       Margin="0,0,0,12"
                        />
+            </StackPanel>
+
 
             <!--  분석 히스토리  -->
             <Grid Grid.Row="1">
@@ -451,8 +462,9 @@
                                                         <TextBlock
                                                             FontSize="12"
                                                             FontWeight="Bold"
+                                                            LineHeight="20"
                                                             Foreground="White"
-                                                            Text="{Binding Result}" />
+                                                            Text="{Binding Result}" TextWrapping="Wrap"/>
                                                     </Border>
                                                 </StackPanel>
 

@@ -25,6 +25,8 @@ namespace FaceSearchApp.ViewModels
     {
         private readonly ISnackbarService _snackbarService;
 
+        private CancellationTokenSource? _analysisLoopCts;
+
         private readonly string _configPath =
             Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "appsettings.json");
 
@@ -50,6 +52,9 @@ namespace FaceSearchApp.ViewModels
 
         [ObservableProperty]
         private bool _isFireMode = true;
+        [ObservableProperty]
+        private bool _isContinuousMode;
+        private bool _isContinuousModeBackup;
 
         // ── 분석 상태 ──────────────────────────────────────────────
         [ObservableProperty] private bool _isAnalyzing;
@@ -281,6 +286,13 @@ namespace FaceSearchApp.ViewModels
 
             try
             {
+                if(IsContinuousMode)
+                {
+                    _isContinuousModeBackup = IsContinuousMode;
+                    await ContinuousModeAnalyzeAsync();
+                    return;
+                }
+
                 // 이미지 → Base64
                 var bytes = await File.ReadAllBytesAsync(_selectedImagePath);
                 var base64 = Convert.ToBase64String(bytes);
@@ -292,6 +304,9 @@ namespace FaceSearchApp.ViewModels
                     ImageInfo = ImageInfo,
                     IsAnalyzing = true
                 };
+
+                if(AnalysisHistory.Count > 99)
+                    AnalysisHistory.RemoveAt(AnalysisHistory.Count - 1);
 
                 // 히스토리 맨 위에 추가
                 AnalysisHistory.Insert(0, item);
@@ -324,6 +339,77 @@ namespace FaceSearchApp.ViewModels
                 AnalyzeCommand.NotifyCanExecuteChanged();
             }
         }
+        private async Task ContinuousModeAnalyzeAsync()
+        {
+            try
+            {
+                IsAnalyzing = true;
+
+                AnalyzeCommand.NotifyCanExecuteChanged();
+                CancelAnalysisCommand.NotifyCanExecuteChanged();
+
+                // 이전 루프 정리
+                _analysisLoopCts?.Cancel();
+                _analysisLoopCts = new CancellationTokenSource();
+
+                var token = _analysisLoopCts.Token;
+
+                // 이미지 미리 읽기
+                var bytes = await File.ReadAllBytesAsync(_selectedImagePath);
+                var base64 = Convert.ToBase64String(bytes);
+
+                StatusMessage = "10초 간격 자동 전송 시작";
+
+                while (!token.IsCancellationRequested)
+                {
+                    // 새 분석 아이템 생성
+                    var item = new AnalysisItem
+                    {
+                        Image = QueryImage,
+                        ImageInfo = ImageInfo,
+                        IsAnalyzing = true
+                    };
+
+                    Application.Current.Dispatcher.Invoke(() =>
+                    {
+                        AnalysisHistory.Insert(0, item);
+                    });
+
+                    _currentAnalysisId = item.Id;
+
+                    // MQTT Payload
+                    var payload = JsonSerializer.Serialize(new
+                    {
+                        id = item.Id.ToString(),
+                        @base64 = base64
+                    });
+
+                    // Publish
+                    await _mqtt.PublishAsync(PubTopic, payload);
+
+                    StatusMessage = $"분석 요청 전송 완료 ({DateTime.Now:HH:mm:ss})";
+
+                    // 10초 대기
+                    await Task.Delay(TimeSpan.FromSeconds(10), token);
+                }
+            }
+            catch (TaskCanceledException)
+            {
+                StatusMessage = "자동 전송 중지";
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"전송 오류: {ex.Message}";
+            }
+            finally
+            {
+                IsAnalyzing = false;
+                _currentAnalysisId = null;
+
+                AnalyzeCommand.NotifyCanExecuteChanged();
+                CancelAnalysisCommand.NotifyCanExecuteChanged();
+            }
+        }
 
         //private bool CanAnalyze()
         //    => _mqtt.IsConnected && QueryImage is not null && !IsAnalyzing;
@@ -337,6 +423,12 @@ namespace FaceSearchApp.ViewModels
         [RelayCommand(CanExecute = nameof(CanCancelAnalysis))]
         private void CancelAnalysis()
         {
+            if (_isContinuousModeBackup)
+            {
+                ContinuousModeCancelAnalysis();
+                return;
+            }
+
             if (!_currentAnalysisId.HasValue) return;
 
             var item = AnalysisHistory.FirstOrDefault(x => x.Id == _currentAnalysisId.Value);
@@ -351,6 +443,27 @@ namespace FaceSearchApp.ViewModels
             CancelAnalysisCommand.NotifyCanExecuteChanged();
 
             _snackbarService.Show("분석 요청 취소", "분석 요청이 취소 되었습니다.", ControlAppearance.Info, new SymbolIcon(SymbolRegular.Checkmark24), TimeSpan.FromSeconds(3));
+        }
+        private void ContinuousModeCancelAnalysis()
+        {
+            StatusMessage = "자동 분석 요청 중지 중...";
+
+            _analysisLoopCts?.Cancel();
+
+            IsAnalyzing = false;
+            _currentAnalysisId = null;
+
+            StatusMessage = "자동 분석 요청이 중지되었습니다.";
+
+            AnalyzeCommand.NotifyCanExecuteChanged();
+            CancelAnalysisCommand.NotifyCanExecuteChanged();
+
+            _snackbarService.Show(
+                "분석 중지",
+                "자동 전송이 중지되었습니다.",
+                ControlAppearance.Info,
+                new SymbolIcon(SymbolRegular.Checkmark24),
+                TimeSpan.FromSeconds(3));
         }
 
         //private bool CanCancelAnalysis() => IsAnalyzing;
@@ -414,7 +527,8 @@ namespace FaceSearchApp.ViewModels
                     targetItem.Decision = response.Decision ?? string.Empty;
                     targetItem.IsAnalyzing = false;
 
-                    IsAnalyzing = false;
+                    if(!_isContinuousModeBackup)
+                        IsAnalyzing = false;
                     _currentAnalysisId = null;
                     StatusMessage = $"분석 결과 수신 완료";
 
