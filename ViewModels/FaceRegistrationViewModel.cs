@@ -33,6 +33,10 @@ namespace FaceSearchApp.ViewModels
         private DateTime? _detectionStartTime;
         private const double RequiredSeconds = 2.0;
 
+        private bool _isDialogOpen = false;
+        private int _noDetectionFrameCount = 0;
+        private const int NoDetectionGraceFrames = 8; // 약 8프레임 유예 (≈ 0.25초)
+
         public FaceRegistrationViewModel(IContentDialogService dialogService)
         {
             _dialogService = dialogService;
@@ -77,35 +81,51 @@ namespace FaceSearchApp.ViewModels
         private void RunVideoLoop(CancellationToken token)
         {
             using Mat frame = new();
-            while (!token.IsCancellationRequested && _capture != null && _capture.Read(frame))
+
+            try
             {
-                if (frame.Empty()) continue;
+                while (!token.IsCancellationRequested)
+                {
+                    var capture = _capture; // 로컬 복사로 중간에 null 되어도 안전
+                    if (capture == null || !capture.Read(frame) || frame.Empty())
+                        break;
 
-                ProcessDetection(frame);
+                    ProcessDetection(frame);
 
-                App.Current.Dispatcher.Invoke(() => {
-                    VideoFrame = frame.ToWriteableBitmap();
-                });
+                    App.Current.Dispatcher.Invoke(() =>
+                    {
+                        // 취소 후 Dispatcher 콜백이 늦게 실행될 경우 방어
+                        if (!token.IsCancellationRequested)
+                            VideoFrame = frame.ToWriteableBitmap();
+                    });
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                // 정상 취소 — 무시
+            }
+            catch (Exception ex)
+            {
+                App.Current.Dispatcher.Invoke(() =>
+                    StatusMessage = $"❌ 스트림 오류: {ex.Message}");
             }
         }
 
         private void ProcessDetection(Mat frame)
         {
+            if (_isDialogOpen || _cts == null || _cts.IsCancellationRequested) return;
+
             using var gray = new Mat();
             Cv2.CvtColor(frame, gray, ColorConversionCodes.BGR2GRAY);
 
-            // OpenCvSharp4 Size 문법 수정
-            // HaarDetectionTypes.ScaleImage를 네 번째 인수로 추가하고, 그 뒤에 minSize를 입력합니다.
             var faces = _faceCascade.DetectMultiScale(
                 gray,
                 1.3,
                 5,
-                HaarDetectionTypes.ScaleImage, // 추가
-                new OpenCvSharp.Size(100, 100)
+                HaarDetectionTypes.ScaleImage,
+                new OpenCvSharp.Size(80, 80)  // 최소 크기를 살짝 낮춰 더 잘 잡히게
             );
 
-            //var guideRect = new Rect(frame.Width / 2 - 120, frame.Height / 2 - 150, 240, 300);
-            // 영상의 실제 크기를 기준으로 중앙 가이드 영역 설정 (영상 크기의 약 30~40%)
             int guideWidth = (int)(frame.Width * 0.4);
             int guideHeight = (int)(frame.Height * 0.5);
             var guideRect = new Rect(
@@ -114,15 +134,19 @@ namespace FaceSearchApp.ViewModels
                 guideWidth,
                 guideHeight
             );
+
             bool foundInZone = false;
 
             foreach (var face in faces)
             {
-                //var faceCenter = new Point(face.X + face.Width / 2, face.Y + face.Height / 2);
-                if (guideRect.Contains(face))
+                // Contains 대신 겹침 비율로 판단 (60% 이상이면 통과)
+                if (GetOverlapRatio(face, guideRect) >= 0.6)
                 {
                     foundInZone = true;
-                    if (_detectionStartTime == null) _detectionStartTime = DateTime.Now;
+                    _noDetectionFrameCount = 0; // 유예 카운터 리셋
+
+                    if (_detectionStartTime == null)
+                        _detectionStartTime = DateTime.Now;
 
                     var elapsed = (DateTime.Now - _detectionStartTime.Value).TotalSeconds;
                     CaptureProgress = Math.Min(100, (elapsed / RequiredSeconds) * 100);
@@ -140,64 +164,102 @@ namespace FaceSearchApp.ViewModels
 
             if (!foundInZone)
             {
-                _detectionStartTime = null;
-                CaptureProgress = 0;
-                GuideColor = Brushes.White;
+                _noDetectionFrameCount++;
+
+                // 유예 프레임 초과 시에만 진행상황 리셋
+                if (_noDetectionFrameCount >= NoDetectionGraceFrames)
+                {
+                    _detectionStartTime = null;
+                    CaptureProgress = 0;
+                    GuideColor = Brushes.White;
+                }
             }
+        }
+
+        // 두 Rect의 겹침 비율 계산 (face 기준)
+        private static double GetOverlapRatio(Rect face, Rect zone)
+        {
+            int interX = Math.Max(face.X, zone.X);
+            int interY = Math.Max(face.Y, zone.Y);
+            int interW = Math.Min(face.X + face.Width, zone.X + zone.Width) - interX;
+            int interH = Math.Min(face.Y + face.Height, zone.Y + zone.Height) - interY;
+
+            if (interW <= 0 || interH <= 0) return 0.0;
+
+            double intersectArea = interW * interH;
+            double faceArea = face.Width * face.Height;
+            return intersectArea / faceArea;
         }
 
         private async void CaptureAndConfirm(Mat frame, Rect faceRect)
         {
-            // 1. 얼굴 영역 크롭 및 비트맵 변환
-            using Mat cropped = new Mat(frame, faceRect);
-            var faceBitmap = cropped.ToWriteableBitmap();
+            _isDialogOpen = true; // 다이얼로그 열기 전 차단
 
-            // 비트맵을 변경 불가능하게 얼려서(Freeze) 스레드 간 안전하게 전달합니다.
+            // 얼굴 사각형 주변에 여백 추가 (20% 패딩)
+            int padX = (int)(faceRect.Width * 0.2);
+            int padY = (int)(faceRect.Height * 0.2);
+
+            var paddedRect = new Rect(
+                Math.Max(0, faceRect.X - padX),
+                Math.Max(0, faceRect.Y - padY),
+                Math.Min(frame.Width - Math.Max(0, faceRect.X - padX), faceRect.Width + padX * 2),
+                Math.Min(frame.Height - Math.Max(0, faceRect.Y - padY), faceRect.Height + padY * 2)
+            );
+
+            using Mat cropped = new Mat(frame, paddedRect);
+            var faceBitmap = cropped.ToWriteableBitmap();
             faceBitmap.Freeze();
 
             await App.Current.Dispatcher.InvokeAsync(async () =>
             {
-                var dialog = new ContentDialog(_dialogService.GetContentPresenter())
+                try
                 {
-                    Title = "안면 등록 확인",
-                    Content = new System.Windows.Controls.Image
+                    var dialog = new ContentDialog(_dialogService.GetContentPresenter())
                     {
-                        Source = faceBitmap,
-                        Width = 200,
-                        Margin = new System.Windows.Thickness(10)
-                    },
-                    PrimaryButtonText = "저장",
-                    CloseButtonText = "다시 시도",
-                    PrimaryButtonAppearance = ControlAppearance.Primary
-                };
-
-                var result = await _dialogService.ShowAsync(dialog, CancellationToken.None);
-
-                if (result == ContentDialogResult.Primary)
-                {
-                    // 2. 파일 저장 다이얼로그 설정
-                    SaveFileDialog saveFileDialog = new SaveFileDialog
-                    {
-                        Title = "안면 이미지 저장",
-                        Filter = "JPEG Image (*.jpg)|*.jpg|All Files (*.*)|*.*",
-                        // 기본 파일명을 타임스탬프 형식으로 지정 (예: Face_20260514_0100.jpg)
-                        FileName = $"Face_{DateTime.Now:yyyyMMdd_HHmmss}.jpg",
-                        DefaultExt = "jpg"
+                        Title = "안면 등록 확인",
+                        Content = new System.Windows.Controls.Image
+                        {
+                            Source = faceBitmap,
+                            Width = 200,
+                            Margin = new System.Windows.Thickness(10)
+                        },
+                        PrimaryButtonText = "저장",
+                        CloseButtonText = "다시 시도",
+                        PrimaryButtonAppearance = ControlAppearance.Primary
                     };
 
-                    // 3. 사용자가 경로를 지정하고 '확인'을 누른 경우
-                    if (saveFileDialog.ShowDialog() == true)
+                    var result = await _dialogService.ShowAsync(dialog, CancellationToken.None);
+
+                    if (result == ContentDialogResult.Primary)
                     {
-                        try
+                        SaveFileDialog saveFileDialog = new SaveFileDialog
                         {
-                            SaveBitmapAsJpg(faceBitmap, saveFileDialog.FileName);
-                            StatusMessage = $"✅ 저장 완료: {Path.GetFileName(saveFileDialog.FileName)}";
-                        }
-                        catch (Exception ex)
+                            Title = "안면 이미지 저장",
+                            Filter = "JPEG Image (*.jpg)|*.jpg|All Files (*.*)|*.*",
+                            FileName = $"Face_{DateTime.Now:yyyyMMdd_HHmmss}.jpg",
+                            DefaultExt = "jpg"
+                        };
+
+                        if (saveFileDialog.ShowDialog() == true)
                         {
-                            StatusMessage = $"❌ 저장 실패: {ex.Message}";
+                            try
+                            {
+                                SaveBitmapAsJpg(faceBitmap, saveFileDialog.FileName);
+                                StatusMessage = $"✅ 저장 완료: {Path.GetFileName(saveFileDialog.FileName)}";
+                            }
+                            catch (Exception ex)
+                            {
+                                StatusMessage = $"❌ 저장 실패: {ex.Message}";
+                            }
                         }
                     }
+                }
+                finally
+                {
+                    // 저장/다시시도 어느 버튼을 눌러도 반드시 해제
+                    _isDialogOpen = false;
+                    _noDetectionFrameCount = 0;
+                    GuideColor = Brushes.White;
                 }
             });
         }
@@ -215,41 +277,30 @@ namespace FaceSearchApp.ViewModels
                 encoder.Save(fileStream);
             }
         }
-        //private async void CaptureAndConfirm(Mat frame, Rect faceRect)
-        //{
-        //    using Mat cropped = new Mat(frame, faceRect);
-        //    var faceBitmap = cropped.ToWriteableBitmap();
-
-        //    await App.Current.Dispatcher.InvokeAsync(async () =>
-        //    {
-        //        var dialog = new ContentDialog(_dialogService.GetContentPresenter())
-        //        {
-        //            Title = "안면 등록 확인",
-        //            Content = new System.Windows.Controls.Image { Source = faceBitmap, Width = 200 },
-        //            PrimaryButtonText = "저장",
-        //            CloseButtonText = "다시 시도",
-        //            // 다이얼로그 전체가 아닌 버튼의 외형을 지정해야 합니다.
-        //            PrimaryButtonAppearance = ControlAppearance.Primary
-        //        };
-
-        //        var result = await _dialogService.ShowAsync(dialog, CancellationToken.None);
-        //        if (result == ContentDialogResult.Primary)
-        //        {
-        //            StatusMessage = "✅ 안면 이미지가 성공적으로 캡처되었습니다.";
-        //            // TODO: 저장 로직 구현
-        //        }
-        //    });
-        //}
 
         [RelayCommand]
         private void StopCamera()
         {
             _cts?.Cancel();
-            _capture?.Release();
+            _cts = null;
+
+            // 루프가 완전히 빠져나올 시간을 잠깐 줌
+            Thread.Sleep(100);
+
+            var capture = _capture;
             _capture = null;
-            VideoFrame = null;
-            StatusMessage = "카메라가 중지되었습니다.";
-            CaptureProgress = 0;
+            capture?.Release();
+            capture?.Dispose();
+
+            App.Current.Dispatcher.Invoke(() =>
+            {
+                VideoFrame = null;
+                StatusMessage = "카메라가 중지되었습니다.";
+                CaptureProgress = 0;
+                GuideColor = Brushes.White;
+                _isDialogOpen = false;
+                _detectionStartTime = null;
+            });
         }
     }
 }
