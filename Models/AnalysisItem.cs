@@ -89,7 +89,7 @@ namespace FaceSearchApp.Models
         public string FireLabel => Decision switch
         {
             "0" => "정상",
-            "1" => "화재",
+            "1" => "이상",
             _ => string.Empty
         };
 

@@ -17,5 +17,8 @@ namespace FaceSearchApp.Models
 
         [JsonPropertyName("vlm_decision")]
         public string? Decision { get; set; }
+
+        [JsonPropertyName("request_id")]
+        public string? Id { get; set; }
     }
 }
