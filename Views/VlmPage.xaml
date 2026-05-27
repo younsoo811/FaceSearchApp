@@ -363,10 +363,48 @@
             </StackPanel>
 
             <StackPanel Margin="0 0 0 12" Orientation="Horizontal" HorizontalAlignment="Right">
-                <ui:ToggleSwitch
-                    Margin="0,0,12,0"
-                    Content="실시간 분석"
-                    IsChecked="{Binding IsLiveEventMode}" />
+                <Border
+                    Margin="0 0 20 0"
+                    Padding="7"
+                    Background="{DynamicResource ControlFillColorDefaultBrush}"
+                    CornerRadius="6">
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+
+                        <ui:ToggleSwitch
+                            Margin="0,0,12,0"
+                            Content="실시간 분석"
+                            IsChecked="{Binding IsLiveEventMode}" />
+
+                        <Rectangle Fill="DarkGray" Width="2" Margin="0 0 10 0"/>
+
+                        <!-- 실시간 분석 ON일 때만 활성화 -->
+                        <StackPanel 
+                            Orientation="Horizontal"
+                            IsEnabled="{Binding IsLiveEventMode}">
+                            <StackPanel.Style>
+                                <Style TargetType="StackPanel">
+                                    <Setter Property="Opacity" Value="1"/>
+                                    <Style.Triggers>
+                                        <Trigger Property="IsEnabled" Value="False">
+                                            <Setter Property="Opacity" Value="0.35"/>
+                                        </Trigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </StackPanel.Style>
+
+                            <ui:ToggleSwitch
+                                Margin="0,0,12,0"
+                                Content="화재 분석"
+                                IsChecked="{Binding IsLiveFireEventMode}" />
+
+                            <ui:ToggleSwitch
+                                Margin="0,0,0,0"
+                                Content="쓰러짐 분석"
+                                IsChecked="{Binding IsLiveFallEventMode}" />
+                        </StackPanel>
+
+                    </StackPanel>
+                </Border>
                 <ui:ToggleSwitch
                     Margin="0,0,12,0"
                     Content="이상 여부 표시"

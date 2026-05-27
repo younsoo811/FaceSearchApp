@@ -75,6 +75,10 @@ namespace FaceSearchApp.ViewModels
 
         [ObservableProperty]
         private bool _isLiveEventMode = false;
+        [ObservableProperty]
+        private bool _isLiveFireEventMode = true;
+        [ObservableProperty]
+        private bool _isLiveFallEventMode = true;
 
         // ── 분석 상태 ──────────────────────────────────────────────
         [ObservableProperty] private bool _isAnalyzing;
@@ -649,7 +653,7 @@ namespace FaceSearchApp.ViewModels
 
                         var eventType = response.EventItem?.EventType ?? "Unknown";
                         var classType = response.EventItem?.ClassType ?? "Unknown";
-                        var imageBase64 = response.EventItem?.ImageInfo.FullFrameBase64Data ?? string.Empty;
+                        var imageBase64 = response.EventItem?.ImageInfo.FullFrameBase64Data ?? string.Empty;                        
 
                         if ((!eventType.Contains("Fall") && !eventType.Contains("Fire")) || string.IsNullOrEmpty(imageBase64))
                         {
@@ -662,6 +666,11 @@ namespace FaceSearchApp.ViewModels
                             : eventType.Contains("Fire", StringComparison.OrdinalIgnoreCase)
                                 ? "Fire"
                                 : eventType;
+
+                        if (!IsLiveFireEventMode && eventType.Equals("Fire"))
+                            return;
+                        if (!IsLiveFallEventMode && eventType.Equals("Fall"))
+                            return;
 
                         // 새 분석 아이템 생성
                         BitmapImage image = Base64ToBitmapImage(imageBase64);
