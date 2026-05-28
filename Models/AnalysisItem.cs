@@ -88,32 +88,32 @@ namespace FaceSearchApp.Models
 
         public string FireLabel => Decision switch
         {
-            "0" => "정상",
-            "1" => "이상",
+            "0" => "오경보",
+            "1" => "정상",
             _ => string.Empty
         };
 
         // 배경색
         public Brush FireBackground => Decision switch
         {
-            "1" => new SolidColorBrush(Color.FromRgb(255, 235, 238)), // 연한 빨강
-            "0" => new SolidColorBrush(Color.FromRgb(232, 245, 233)), // 연한 초록
+            "0" => new SolidColorBrush(Color.FromRgb(255, 235, 238)), // 연한 빨강
+            "1" => new SolidColorBrush(Color.FromRgb(232, 245, 233)), // 연한 초록
             _ => Brushes.Transparent
         };
 
         // 테두리색
         public Brush FireBorderBrush => Decision switch
         {
-            "1" => new SolidColorBrush(Color.FromRgb(244, 67, 54)), // 빨강
-            "0" => new SolidColorBrush(Color.FromRgb(76, 175, 80)), // 초록
+            "0" => new SolidColorBrush(Color.FromRgb(244, 67, 54)), // 빨강
+            "1" => new SolidColorBrush(Color.FromRgb(76, 175, 80)), // 초록
             _ => Brushes.Transparent
         };
 
         // 글자색
         public Brush FireForeground => Decision switch
         {
-            "1" => new SolidColorBrush(Color.FromRgb(198, 40, 40)),
-            "0" => new SolidColorBrush(Color.FromRgb(46, 125, 50)),
+            "0" => new SolidColorBrush(Color.FromRgb(198, 40, 40)),
+            "1" => new SolidColorBrush(Color.FromRgb(46, 125, 50)),
             _ => Brushes.Black
         };
     }

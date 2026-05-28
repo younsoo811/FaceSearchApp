@@ -16,6 +16,8 @@ using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Wpf.Ui;
 using Wpf.Ui.Controls;
@@ -31,6 +33,7 @@ namespace FaceSearchApp.ViewModels
     public partial class VlmViewModel : ObservableObject, IDisposable
     {
         private readonly ISnackbarService _snackbarService;
+        private readonly IContentDialogService _dialogService;
 
         private CancellationTokenSource? _analysisLoopCts;
 
@@ -87,9 +90,10 @@ namespace FaceSearchApp.ViewModels
         // ── 분석 히스토리 ──────────────────────────────────────────
         public ObservableCollection<AnalysisItem> AnalysisHistory { get; } = new();
 
-        public VlmViewModel(ISnackbarService snackbarService)
+        public VlmViewModel(ISnackbarService snackbarService, IContentDialogService dialogService)
         {
             _snackbarService = snackbarService;
+            _dialogService = dialogService;
 
             _selectedEventType = EventTypes.FirstOrDefault();
 
@@ -711,6 +715,266 @@ namespace FaceSearchApp.ViewModels
                     }
                 });
             }
+        }
+
+
+        [RelayCommand]
+        private async Task ShowDetailAsync(AnalysisItem item)
+        {
+            if (item is null || item.IsAnalyzing) return;
+
+            var dialog = new ContentDialog(_dialogService.GetContentPresenter())
+            {
+                Title = "분석 결과 상세",
+                Content = BuildDetailContent(item),
+                CloseButtonText = "닫기"
+            };
+
+            // 다이얼로그가 열렸을 때 외부 영역 클릭 이벤트 바인딩
+            dialog.Opened += (s, e) =>
+            {
+                // ContentDialog 내부의 첫 번째 자식인 SmokeLayer(또는 Grid)를 찾기
+                if (s is ContentDialog currentDialog &&
+                    System.Windows.Media.VisualTreeHelper.GetChildrenCount(currentDialog) > 0)
+                {
+                    var rootGrid = System.Windows.Media.VisualTreeHelper.GetChild(currentDialog, 0) as System.Windows.Controls.Grid;
+                    if (rootGrid != null)
+                    {
+                        // 배경(어두운 영역)을 클릭했을 때 다이얼로그를 숨김
+                        rootGrid.MouseDown += (sender, args) =>
+                        {
+                            // 클릭된 요소가 다이얼로그 몸통이 아니라 바깥 배경일 때만 닫기
+                            if (args.OriginalSource == rootGrid)
+                            {
+                                currentDialog.Hide(ContentDialogResult.None);
+                            }
+                        };
+                    }
+                }
+            };
+
+            await _dialogService.ShowAsync(dialog, CancellationToken.None);
+        }
+
+        private UIElement BuildDetailContent(AnalysisItem item)
+        {
+            var root = new StackPanel { Width = 500, Margin = new Thickness(0, 4, 0, 0) };
+
+            // ── 이미지 + FireLabel 배지 ──────────────────────────
+            var imgBorder = new Border
+            {
+                Background = (Brush)Application.Current.Resources["ControlFillColorDefaultBrush"],
+                CornerRadius = new CornerRadius(8),
+                MaxHeight = 340,
+                Margin = new Thickness(0, 0, 0, 14),
+                ClipToBounds = true
+            };
+
+            var imgGrid = new Grid();
+
+            var img = new System.Windows.Controls.Image
+            {
+                Source = item.Image,
+                Stretch = Stretch.Uniform,
+                Margin = new Thickness(6)
+            };
+            RenderOptions.SetBitmapScalingMode(img, BitmapScalingMode.HighQuality);
+            // 우클릭 컨텍스트 메뉴
+            img.ContextMenu = BuildImageContextMenu(item);
+            imgGrid.Children.Add(img);
+
+            // FireLabel 배지 (이미지 우상단)
+            if (IsFireMode && !string.IsNullOrEmpty(item.FireLabel))
+            {
+                var badge = new Border
+                {
+                    Background = item.FireBorderBrush,
+                    CornerRadius = new CornerRadius(6),
+                    Padding = new Thickness(12, 6, 12, 6),
+                    HorizontalAlignment = HorizontalAlignment.Right,
+                    VerticalAlignment = VerticalAlignment.Top,
+                    Margin = new Thickness(0, 10, 10, 0)
+                };
+                badge.Child = new Wpf.Ui.Controls.TextBlock
+                {
+                    Text = item.FireLabel,
+                    FontSize = 14,
+                    FontWeight = FontWeights.SemiBold,
+                    Foreground = Brushes.White
+                };
+                imgGrid.Children.Add(badge);
+            }
+
+            imgBorder.Child = imgGrid;
+            root.Children.Add(imgBorder);
+
+            // ── 타임스탬프 · 이미지 정보 ─────────────────────────
+            root.Children.Add(new Wpf.Ui.Controls.TextBlock
+            {
+                Text = $"{item.Timestamp}  ·  {item.ImageInfo}",
+                FontSize = 11,
+                Opacity = 0.5,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                Margin = new Thickness(0, 0, 0, 12)
+            });
+
+            // ── Result 배지 ──────────────────────────────────────
+            if (!string.IsNullOrEmpty(item.Result))
+            {
+                var resultBorder = new Border
+                {
+                    Background = (Brush)Application.Current.Resources["SystemAccentColorPrimaryBrush"],
+                    CornerRadius = new CornerRadius(6),
+                    Padding = new Thickness(14, 7, 14, 7),
+                    HorizontalAlignment = HorizontalAlignment.Left,
+                    Margin = new Thickness(0, 0, 0, 12)
+                };
+                resultBorder.Child = new Wpf.Ui.Controls.TextBlock
+                {
+                    Text = item.Result,
+                    FontSize = 14,
+                    FontWeight = FontWeights.Bold,
+                    Foreground = Brushes.White,
+                    TextWrapping = TextWrapping.Wrap
+                };
+                root.Children.Add(resultBorder);
+            }
+
+            // ── 이미지 설명 ──────────────────────────────────────
+            if (!string.IsNullOrEmpty(item.Description))
+            {
+                var descBorder = new Border
+                {
+                    Background = (Brush)Application.Current.Resources["ControlFillColorDefaultBrush"],
+                    CornerRadius = new CornerRadius(6),
+                    Padding = new Thickness(14, 10, 14, 10)
+                };
+
+                var descStack = new StackPanel();
+                descStack.Children.Add(new Wpf.Ui.Controls.TextBlock
+                {
+                    Text = "이미지 설명",
+                    FontSize = 11,
+                    FontWeight = FontWeights.SemiBold,
+                    Opacity = 0.6,
+                    Margin = new Thickness(0, 0, 0, 8)
+                });
+                descStack.Children.Add(new Wpf.Ui.Controls.TextBlock
+                {
+                    Text = item.Description,
+                    FontSize = 13,
+                    LineHeight = 22,
+                    TextWrapping = TextWrapping.Wrap
+                });
+
+                descBorder.Child = descStack;
+                root.Children.Add(descBorder);
+            }
+
+            return new ScrollViewer
+            {
+                Content = root,
+                MaxHeight = 620,
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled
+            };
+        }
+        private ContextMenu BuildImageContextMenu(AnalysisItem item)
+        {
+            var menu = new ContextMenu();
+
+            // ── 이미지 저장 ──────────────────────────────────────
+            var saveItem = new Wpf.Ui.Controls.MenuItem
+            {
+                Header = "이미지 저장...",
+                Icon = new SymbolIcon(SymbolRegular.ArrowDownload24)
+            };
+            saveItem.Click += (_, _) => SaveDialogImage(item);
+            menu.Items.Add(saveItem);
+
+            // ── 클립보드 복사 ────────────────────────────────────
+            var copyItem = new Wpf.Ui.Controls.MenuItem
+            {
+                Header = "클립보드에 복사",
+                Icon = new SymbolIcon(SymbolRegular.Copy24)
+            };
+            copyItem.Click += (_, _) =>
+            {
+                if (item.Image is not null)
+                {
+                    Clipboard.SetImage(item.Image);
+                    _snackbarService.Show(
+                        "복사 완료",
+                        "이미지가 클립보드에 복사되었습니다.",
+                        ControlAppearance.Success,
+                        new SymbolIcon(SymbolRegular.Checkmark24),
+                        TimeSpan.FromSeconds(2));
+                }
+            };
+            menu.Items.Add(copyItem);
+
+            return menu;
+        }
+
+        private void SaveDialogImage(AnalysisItem item)
+        {
+            if (item.Image is null) return;
+
+            // 기본 파일명: 이벤트타입_타임스탬프 형식
+            var defaultName = string.IsNullOrWhiteSpace(item.ImageInfo)
+                ? $"Image_{DateTime.Now:yyyyMMdd_HHmmss}"
+                : $"{SanitizeFileName(item.ImageInfo.Split('·')[0].Trim())}_{DateTime.Now:yyyyMMdd_HHmmss}";
+
+            var dialog = new SaveFileDialog
+            {
+                Title = "이미지 저장",
+                Filter = "JPEG (*.jpg)|*.jpg|PNG (*.png)|*.png|BMP (*.bmp)|*.bmp|모든 파일 (*.*)|*.*",
+                FilterIndex = 1,
+                FileName = defaultName,
+                DefaultExt = "jpg"
+            };
+
+            if (dialog.ShowDialog() != true) return;
+
+            try
+            {
+                var ext = Path.GetExtension(dialog.FileName).ToLowerInvariant();
+
+                BitmapEncoder encoder = ext switch
+                {
+                    ".png" => new PngBitmapEncoder(),
+                    ".bmp" => new BmpBitmapEncoder(),
+                    _ => new JpegBitmapEncoder { QualityLevel = 95 }
+                };
+
+                encoder.Frames.Add(BitmapFrame.Create(item.Image));
+
+                using var fs = new FileStream(dialog.FileName, FileMode.Create);
+                encoder.Save(fs);
+
+                _snackbarService.Show(
+                    "저장 완료",
+                    $"{Path.GetFileName(dialog.FileName)}",
+                    ControlAppearance.Success,
+                    new SymbolIcon(SymbolRegular.Checkmark24),
+                    TimeSpan.FromSeconds(3));
+            }
+            catch (Exception ex)
+            {
+                _snackbarService.Show(
+                    "저장 실패",
+                    ex.Message,
+                    ControlAppearance.Danger,
+                    new SymbolIcon(SymbolRegular.ErrorCircle24),
+                    TimeSpan.FromSeconds(3));
+            }
+        }
+
+        // 파일명에 사용 불가한 문자 제거
+        private static string SanitizeFileName(string name)
+        {
+            var invalid = Path.GetInvalidFileNameChars();
+            return string.Concat(name.Select(c => invalid.Contains(c) ? '_' : c)).Trim();
         }
 
         // ═══════════════════════════════════════════════════════════

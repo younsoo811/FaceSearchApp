@@ -436,7 +436,13 @@
                                         </Grid.ColumnDefinitions>
 
                                         <!--  이미지  -->
-                                        <Border Grid.Column="0" Background="{DynamicResource ControlFillColorDefaultBrush}" CornerRadius="6">
+                                        <Border Grid.Column="0" Background="{DynamicResource ControlFillColorDefaultBrush}" CornerRadius="6" Cursor="Hand">
+                                            <!-- 클릭 시 상세 다이얼로그 -->
+                                            <Border.InputBindings>
+                                                <MouseBinding MouseAction="LeftClick"
+                                                    Command="{Binding DataContext.ShowDetailCommand, RelativeSource={RelativeSource AncestorType=Page}}"
+                                                    CommandParameter="{Binding}" />
+                                            </Border.InputBindings>
                                             <Grid>
                                                 <Image
                                                 Margin="5"
