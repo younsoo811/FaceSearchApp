@@ -7,7 +7,7 @@
       xmlns:converters="clr-namespace:FaceSearchApp.Converters"
       xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
       mc:Ignorable="d" 
-      d:DesignHeight="900" d:DesignWidth="1000"
+      d:DesignHeight="900" d:DesignWidth="1500"
       Title="VLM 이미지 분석">
 
     <Page.Resources>
@@ -147,12 +147,23 @@
                                         </Style>
                                     </Ellipse.Style>
                                 </Ellipse>
-                                <TextBlock
-                                    Grid.Column="1"
-                                    VerticalAlignment="Center"
-                                    FontSize="11"
-                                    Text="{Binding ConnectionStatus}"
-                                    TextTrimming="CharacterEllipsis" />
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock
+                                        Grid.Column="1"
+                                        VerticalAlignment="Center"
+                                        FontSize="11"
+                                        Text="{Binding ConnectionStatus}"
+                                        TextTrimming="CharacterEllipsis" />
+
+                                    <TextBlock Margin="5 0 1 0" FontSize="8" Text="[" VerticalAlignment="Center" Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                                    <TextBlock
+                                        Margin="0 0 0 0"
+                                        FontSize="8"
+                                        VerticalAlignment="Center"
+                                        Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                        Text="{Binding StatusMessage}" />
+                                    <TextBlock Margin="1 0 0 0" FontSize="8" Text="]" VerticalAlignment="Center" Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                                </StackPanel>
                             </Grid>
                         </Border>
 
@@ -341,7 +352,7 @@
                         Text="VLM 분석 결과" />
                 </Border>
 
-                <Border
+                <!--<Border
                     Padding="10"
                     Background="{DynamicResource ControlFillColorDefaultBrush}"
                     CornerRadius="6"
@@ -351,7 +362,7 @@
                         VerticalAlignment="Center"
                         Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                         Text="{Binding StatusMessage}" />
-                </Border>
+                </Border>-->
 
                 <ui:Button
                     Margin="10 0 0 0"
@@ -405,15 +416,33 @@
 
                     </StackPanel>
                 </Border>
-                <ui:ToggleSwitch
-                    Margin="0,0,12,0"
-                    Content="이상 여부 표시"
-                    IsChecked="{Binding IsFireMode}" />
+
+                <Border
+                    Margin="0 0 20 0"
+                    Padding="7"
+                    Background="{DynamicResource ControlFillColorDefaultBrush}"
+                    CornerRadius="6">
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                        <ui:ToggleSwitch
+                            Margin="0,0,12,0"
+                            Content="이상 여부 표시"
+                            IsChecked="{Binding IsFireMode}" />
+                        <ComboBox
+                            Width="120"
+                            Margin="0,0,0,0"
+                            HorizontalAlignment="Center"
+                            ItemsSource="{Binding LabelTypes}"
+                            SelectedItem="{Binding SelectedLabelType, Mode=TwoWay}"
+                            DisplayMemberPath="Display"
+                            />
+                    </StackPanel>
+                </Border>
                 <ui:Button Command="{Binding ClearHistoryCommand}"
                        Appearance="Secondary"
                        Icon="{ui:SymbolIcon Delete24}"
                        Content="분석 기록 초기화"
                        HorizontalAlignment="Right"
+                           VerticalAlignment="Stretch"
                        />
             </StackPanel>
 

@@ -7,7 +7,9 @@ using System;
 using System.Buffers.Text;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Data;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -16,6 +18,7 @@ using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -76,6 +79,15 @@ namespace FaceSearchApp.ViewModels
         [ObservableProperty]
         private EventTypeItem? _selectedEventType;
 
+        public ObservableCollection<EventTypeItem> LabelTypes { get; } =
+            [
+            new() {Key = "", Display = "전체 표시"},
+            new() {Key = "0", Display = "오경보"},
+            new() {Key = "1", Display = "정상"},
+            ];
+        [ObservableProperty]
+        private EventTypeItem? _selectedLabelType;
+
         [ObservableProperty]
         private bool _isLiveEventMode = false;
         [ObservableProperty]
@@ -88,7 +100,8 @@ namespace FaceSearchApp.ViewModels
         [ObservableProperty] private string _statusMessage = "VLM 서버 연결 상태를 확인해주세요.";
 
         // ── 분석 히스토리 ──────────────────────────────────────────
-        public ObservableCollection<AnalysisItem> AnalysisHistory { get; } = new();
+        private readonly ObservableCollection<AnalysisItem> _allHistory = new();
+        public ICollectionView AnalysisHistory { get; }
 
         public VlmViewModel(ISnackbarService snackbarService, IContentDialogService dialogService)
         {
@@ -96,10 +109,54 @@ namespace FaceSearchApp.ViewModels
             _dialogService = dialogService;
 
             _selectedEventType = EventTypes.FirstOrDefault();
+            _selectedLabelType = LabelTypes.FirstOrDefault();
+
+            // CollectionView 필터 설정
+            AnalysisHistory = CollectionViewSource.GetDefaultView(_allHistory);
+            AnalysisHistory.Filter = FilterItem;
 
             LoadVlmSettings();
 
             _mqtt.MessageReceived += OnMqttMessageReceived;
+        }
+
+        private bool FilterItem(object obj)
+        {
+            if (obj is not AnalysisItem item) return false;
+
+            // 분석 중인 항목은 필터 무관하게 항상 표시
+            if (item.IsAnalyzing) return true;
+
+            var key = SelectedLabelType?.Key ?? string.Empty;
+
+            // 전체 표시 (key가 비어있는 경우)
+            if (string.IsNullOrEmpty(key)) return true;
+
+            return item.Decision == key;
+        }
+
+        async partial void OnIsLiveEventModeChanged(bool oldValue, bool newValue)
+        {
+            await ManageLiveEventTopic(newValue);
+        }
+        private async Task ManageLiveEventTopic(bool subscribe)
+        {
+            if (string.IsNullOrEmpty(_eventTopic)) return;
+            if (subscribe)
+            {
+                await _mqtt.SubscribeAsync(_eventTopic);
+                StatusMessage += $"구독 중: {_eventTopic}";
+            }
+            else
+            {
+                await _mqtt.UnsubscribeAsync(_eventTopic);
+                StatusMessage = "실시간 분석이 해제되었습니다.";
+            }
+        }
+
+        partial void OnSelectedLabelTypeChanged(EventTypeItem? value)
+        {
+            AnalysisHistory.Refresh();
         }
 
         #region MQTT 설정 로드/저장
@@ -227,7 +284,7 @@ namespace FaceSearchApp.ViewModels
                     await _mqtt.SubscribeAsync(SubTopic);
                     StatusMessage = $"구독 중: {SubTopic} ";
                 }
-                if (!string.IsNullOrEmpty(_eventTopic))
+                if (!string.IsNullOrEmpty(_eventTopic) && IsLiveEventMode)
                 {
                     await _mqtt.SubscribeAsync(_eventTopic);
                     StatusMessage += $"구독 중: {_eventTopic}";
@@ -344,11 +401,11 @@ namespace FaceSearchApp.ViewModels
                     IsAnalyzing = true
                 };
 
-                if(AnalysisHistory.Count > 99)
-                    AnalysisHistory.RemoveAt(AnalysisHistory.Count - 1);
+                if(_allHistory.Count > 99)
+                    _allHistory.RemoveAt(_allHistory.Count - 1);
 
                 // 히스토리 맨 위에 추가
-                AnalysisHistory.Insert(0, item);
+                _allHistory.Insert(0, item);
                 _currentAnalysisId = item.Id;
                 IsAnalyzing = true;
 
@@ -371,9 +428,9 @@ namespace FaceSearchApp.ViewModels
                 StatusMessage = $"전송 오류: {ex.Message}";
                 if (_currentAnalysisId.HasValue)
                 {
-                    var item = AnalysisHistory.FirstOrDefault(x => x.Id == _currentAnalysisId.Value);
+                    var item = _allHistory.FirstOrDefault(x => x.Id == _currentAnalysisId.Value);
                     if (item is not null)
-                        AnalysisHistory.Remove(item);
+                        _allHistory.Remove(item);
                 }
                 IsAnalyzing = false;
                 _currentAnalysisId = null;
@@ -413,7 +470,7 @@ namespace FaceSearchApp.ViewModels
 
                     Application.Current.Dispatcher.Invoke(() =>
                     {
-                        AnalysisHistory.Insert(0, item);
+                        _allHistory.Insert(0, item);
                     });
 
                     _currentAnalysisId = item.Id;
@@ -461,7 +518,7 @@ namespace FaceSearchApp.ViewModels
         // ═══════════════════════════════════════════════════════════
 
         [RelayCommand(CanExecute = nameof(CanCancelAnalysis))]
-        private void CancelAnalysis()
+        private async void CancelAnalysis()
         {
             if (_isContinuousModeBackup)
             {
@@ -471,15 +528,15 @@ namespace FaceSearchApp.ViewModels
 
             if (IsLiveEventMode)
             {
-                LiveEventModeCancelAnalysis();
+                await LiveEventModeCancelAnalysis();
                 return;
             }
 
             if (!_currentAnalysisId.HasValue) return;
 
-            var item = AnalysisHistory.FirstOrDefault(x => x.Id == _currentAnalysisId.Value);
+            var item = _allHistory.FirstOrDefault(x => x.Id == _currentAnalysisId.Value);
             if (item is not null)
-                AnalysisHistory.Remove(item);
+                _allHistory.Remove(item);
 
             IsAnalyzing = false;
             _currentAnalysisId = null;
@@ -511,11 +568,12 @@ namespace FaceSearchApp.ViewModels
                 new SymbolIcon(SymbolRegular.Checkmark24),
                 TimeSpan.FromSeconds(3));
         }
-        private void LiveEventModeCancelAnalysis()
+        private async Task LiveEventModeCancelAnalysis()
         {
             IsAnalyzing = false;
             _currentAnalysisId = null;
             StatusMessage = "실시간 이벤트 분석이 중지되었습니다.";
+            IsLiveEventMode = false;
             AnalyzeCommand.NotifyCanExecuteChanged();
             CancelAnalysisCommand.NotifyCanExecuteChanged();
             _snackbarService.Show(
@@ -533,7 +591,7 @@ namespace FaceSearchApp.ViewModels
         private void ClearHistory()
         {
             CancelAnalysis();
-            AnalysisHistory.Clear();
+            _allHistory.Clear();
             StatusMessage = "분석 기록이 초기화되었습니다.";
         }
 
@@ -563,7 +621,7 @@ namespace FaceSearchApp.ViewModels
                         // 응답에 id가 있으면 매칭 시도
                         if(!string.IsNullOrEmpty(response.Id) && Guid.TryParse(response.Id, out var guid))
                         {
-                            targetItem = AnalysisHistory.FirstOrDefault(x => x.Id == guid);
+                            targetItem = _allHistory.FirstOrDefault(x => x.Id == guid);
                         }
                         //if (payload.Contains("\"id\""))
                         //{
@@ -577,7 +635,7 @@ namespace FaceSearchApp.ViewModels
                         //}
 
                         // ID 매칭 실패 시 현재 분석 중인 항목 찾기
-                        targetItem ??= AnalysisHistory.FirstOrDefault(x => x.IsAnalyzing);
+                        targetItem ??= _allHistory.FirstOrDefault(x => x.IsAnalyzing);
 
                         if (targetItem is null)
                         {
@@ -590,6 +648,8 @@ namespace FaceSearchApp.ViewModels
                         targetItem.Result = response.Result ?? string.Empty;
                         targetItem.Decision = response.Decision ?? string.Empty;
                         targetItem.IsAnalyzing = false;
+
+                        AnalysisHistory.Refresh();
 
                         if (!_isContinuousModeBackup)
                         {
@@ -607,7 +667,8 @@ namespace FaceSearchApp.ViewModels
                                         IsAnalyzing = false;
                                         _isRealtimeCooldown = false;
 
-                                        StatusMessage = "실시간 이벤트 대기 중...";
+                                        if(IsLiveEventMode)
+                                            StatusMessage = "실시간 이벤트 대기 중...";
                                     });
                                 });
                             }
@@ -687,11 +748,11 @@ namespace FaceSearchApp.ViewModels
                             IsAnalyzing = true
                         };
 
-                        if (AnalysisHistory.Count > 99)
-                            AnalysisHistory.RemoveAt(AnalysisHistory.Count - 1);
+                        if (_allHistory.Count > 99)
+                            _allHistory.RemoveAt(_allHistory.Count - 1);
 
                         // 히스토리 맨 위에 추가
-                        AnalysisHistory.Insert(0, item);
+                        _allHistory.Insert(0, item);
                         _currentAnalysisId = item.Id;
                         IsAnalyzing = true;
 
@@ -704,7 +765,7 @@ namespace FaceSearchApp.ViewModels
                         });
 
                         await _mqtt.PublishAsync(PubTopic, request);
-                        StatusMessage = $"실시간 분석 요청 완료 (분석 진행 중...)";
+                        StatusMessage = $"실시간 분석 진행 중...";
 
                         AnalyzeCommand.NotifyCanExecuteChanged();
                     }
