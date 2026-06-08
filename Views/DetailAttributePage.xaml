@@ -117,6 +117,7 @@
                             <RowDefinition Height="*" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
 
                         <TextBlock Grid.Row="0" Margin="0,0,0,12" FontSize="13" FontWeight="SemiBold" Text="이미지 업로드" />
@@ -169,6 +170,14 @@
                                    Icon="{ui:SymbolIcon Dismiss24}" Margin="4,0"
                                    Visibility="{Binding QueryImage, Converter={StaticResource NullVis}}" />
                         </StackPanel>
+
+                        <ui:Button Grid.Row="4"
+                            Margin="0,10,0,0"
+                               Appearance="Primary"
+                               HorizontalAlignment="Stretch"
+                               Command="{Binding AnalyzeCommand}"
+                               Content="속성 분석"
+                               Icon="{ui:SymbolIcon PersonSearch24}" />
                     </Grid>
                 </ui:Card>
             </Grid>
@@ -194,11 +203,11 @@
                                Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                Text="세부속성 분석 결과"
                                VerticalAlignment="Center" />
-                    <ui:Button Margin="10,0,0,0"
+                    <!--<ui:Button Margin="10,0,0,0"
                                Appearance="Primary"
                                Command="{Binding AnalyzeCommand}"
                                Content="속성 분석"
-                               Icon="{ui:SymbolIcon PersonSearch24}" />
+                               Icon="{ui:SymbolIcon PersonSearch24}" />-->
                     <!-- 분석 중 로딩 표시 -->
                     <StackPanel Margin="12,0,0,0" Orientation="Horizontal" VerticalAlignment="Center"
                                 Visibility="{Binding IsAnalyzing, Converter={StaticResource BoolToVis}}">
