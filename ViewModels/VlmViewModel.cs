@@ -415,11 +415,17 @@ namespace FaceSearchApp.ViewModels
                     id = item.Id.ToString(),
                     eventType = SelectedEventType?.Key ?? "Unknown",
                     classType = "Unknown",
+                    boundingBox = new BoundingBoxModel(),
+                    @confidence = 0,
                     @base64 = base64
                 });
 
                 await _mqtt.PublishAsync(PubTopic, payload);
                 StatusMessage = $"분석 요청 완료 (분석 진행 중...)";
+
+                // 미응답 생략 타임아웃 시작
+                if (IsSkipNoResponse)
+                    StartResponseTimeout(item.Id);
 
                 AnalyzeCommand.NotifyCanExecuteChanged();
             }
@@ -520,6 +526,8 @@ namespace FaceSearchApp.ViewModels
         [RelayCommand(CanExecute = nameof(CanCancelAnalysis))]
         private async void CancelAnalysis()
         {
+            CancelResponseTimeout();
+
             if (_isContinuousModeBackup)
             {
                 ContinuousModeCancelAnalysis();
@@ -599,6 +607,61 @@ namespace FaceSearchApp.ViewModels
         // MQTT 수신
         // ═══════════════════════════════════════════════════════════
 
+        // ── 미응답 생략 ────────────────────────────────────────────
+        [ObservableProperty] private bool _isSkipNoResponse;
+        private CancellationTokenSource? _timeoutCts;
+        // ═══════════════════════════════════════════════════════════
+        // 미응답 생략 타임아웃
+        // ═══════════════════════════════════════════════════════════
+
+        private void StartResponseTimeout(Guid itemId)
+        {
+            // 이전 타임아웃 취소
+            _timeoutCts?.Cancel();
+            _timeoutCts = new CancellationTokenSource();
+            var token = _timeoutCts.Token;
+
+            Task.Run(async () =>
+            {
+                try
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(10), token);
+
+                    // 10초 경과 → UI 스레드에서 처리
+                    Application.Current.Dispatcher.Invoke(() =>
+                    {
+                        var item = _allHistory.FirstOrDefault(x => x.Id == itemId && x.IsAnalyzing);
+                        if (item is null) return;
+
+                        _allHistory.Remove(item);
+                        IsAnalyzing = false;
+                        _currentAnalysisId = null;
+                        StatusMessage = "응답 시간 초과 - 요청이 자동 삭제되었습니다.";
+
+                        AnalyzeCommand.NotifyCanExecuteChanged();
+                        CancelAnalysisCommand.NotifyCanExecuteChanged();
+
+                        _snackbarService.Show(
+                            "응답 시간 초과",
+                            "10초 내 응답이 없어 해당 요청이 자동으로 삭제되었습니다.",
+                            ControlAppearance.Caution,
+                            new SymbolIcon(SymbolRegular.ClockAlarm24),
+                            TimeSpan.FromSeconds(3));
+                    });
+                }
+                catch (TaskCanceledException)
+                {
+                    // 정상 응답 수신 또는 수동 취소 → 무시
+                }
+            }, token);
+        }
+
+        private void CancelResponseTimeout()
+        {
+            _timeoutCts?.Cancel();
+            _timeoutCts = null;
+        }
+
         private bool _isRealtimeCooldown;
         private void OnMqttMessageReceived(string topic, string payload)
         {
@@ -648,6 +711,7 @@ namespace FaceSearchApp.ViewModels
                         targetItem.Result = response.Result ?? string.Empty;
                         targetItem.Decision = response.Decision ?? string.Empty;
                         targetItem.IsAnalyzing = false;
+                        CancelResponseTimeout();
 
                         AnalysisHistory.Refresh();
 
@@ -718,7 +782,9 @@ namespace FaceSearchApp.ViewModels
 
                         var eventType = response.EventItem?.EventType ?? "Unknown";
                         var classType = response.EventItem?.ClassType ?? "Unknown";
-                        var imageBase64 = response.EventItem?.ImageInfo.FullFrameBase64Data ?? string.Empty;                        
+                        var imageBase64 = response.EventItem?.ImageInfo.FullFrameBase64Data ?? string.Empty;
+                        var bbox = response.EventItem?.BoundingBox ?? new BoundingBoxModel();
+                        float confidence = response.AdditionalData?.Confidence ?? 0;
 
                         if ((!eventType.Contains("Fall") && !eventType.Contains("Fire")) || string.IsNullOrEmpty(imageBase64))
                         {
@@ -761,11 +827,17 @@ namespace FaceSearchApp.ViewModels
                             id = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString(),
                             eventType = eventType,
                             classType = classType,
+                            boundingBox = bbox,
+                            @confidence = confidence,
                             @base64 = imageBase64
                         });
 
                         await _mqtt.PublishAsync(PubTopic, request);
                         StatusMessage = $"실시간 분석 진행 중...";
+
+                        // 미응답 생략 타임아웃 시작
+                        if (IsSkipNoResponse)
+                            StartResponseTimeout(item.Id);
 
                         AnalyzeCommand.NotifyCanExecuteChanged();
                     }
@@ -1079,6 +1151,7 @@ namespace FaceSearchApp.ViewModels
 
         public void Dispose()
         {
+            CancelResponseTimeout();
             _mqtt.MessageReceived -= OnMqttMessageReceived;
             _mqtt.Dispose();
         }
