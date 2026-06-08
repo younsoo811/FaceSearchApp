@@ -1,0 +1,430 @@
+﻿<Page x:Class="FaceSearchApp.Views.DetailAttributePage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+      xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+      xmlns:local="clr-namespace:FaceSearchApp.Views"
+      xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+      xmlns:models="clr-namespace:FaceSearchApp.Models"
+      xmlns:converters="clr-namespace:FaceSearchApp.Converters"
+      mc:Ignorable="d" 
+      d:DesignHeight="450" d:DesignWidth="800"
+      Title="DetailAttributePage">
+    <Page.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
+        <converters:InverseBoolToVisibilityConverter x:Key="InvBoolToVis" />
+        <converters:NullToVisibilityConverter x:Key="NullVis" />
+        <converters:NotNullToVisibilityConverter x:Key="NotNullVis" />
+    </Page.Resources>
+    <Grid Margin="16">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="340" MinWidth="300" />
+            <ColumnDefinition Width="8" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <!-- ═══════════════════════════════════════════════════ -->
+        <!-- 좌측 패널                                           -->
+        <!-- ═══════════════════════════════════════════════════ -->
+        <Grid Grid.Column="0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="12" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <!-- 서버 연결 설정 카드 -->
+            <ui:Card Grid.Row="0">
+                <Expander IsExpanded="True">
+                    <Expander.Header>
+                        <Border Padding="0,0,0,4">
+                            <TextBlock FontSize="13" FontWeight="SemiBold" Text="세부속성 서버 연결 설정" />
+                        </Border>
+                    </Expander.Header>
+
+                    <StackPanel Margin="0,8,0,0">
+                        <StackPanel Margin="0,0,0,10">
+                            <TextBlock FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Text="서버 주소" />
+                            <ui:TextBox PlaceholderText="예: http://studio" Text="{Binding BaseUrl, UpdateSourceTrigger=PropertyChanged}" />
+                        </StackPanel>
+
+                        <StackPanel Margin="0,0,0,10">
+                            <TextBlock FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Text="사용자명" />
+                            <ui:TextBox PlaceholderText="Username" Text="{Binding ServerUsername, UpdateSourceTrigger=PropertyChanged}" />
+                        </StackPanel>
+
+                        <StackPanel Margin="0,0,0,10">
+                            <TextBlock FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Text="암호" />
+                            <ui:PasswordBox x:Name="PasswordBox"
+                                            PlaceholderText="Password"
+                                            Text="{Binding ServerPassword, UpdateSourceTrigger=PropertyChanged}" />
+                        </StackPanel>
+
+                        <!-- 연결 상태 표시 -->
+                        <Border Margin="0,0,0,8" Padding="8,6"
+                                Background="{DynamicResource ControlFillColorDefaultBrush}"
+                                CornerRadius="6">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Ellipse Width="8" Height="8" Margin="0,0,8,0" VerticalAlignment="Center">
+                                    <Ellipse.Style>
+                                        <Style TargetType="Ellipse">
+                                            <Setter Property="Fill" Value="#E74C3C" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsConnected}" Value="True">
+                                                    <Setter Property="Fill" Value="#2ECC71" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Ellipse.Style>
+                                </Ellipse>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock FontSize="11" Text="{Binding ConnectionStatus}" TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Margin="6,0,1,0" FontSize="8" Text="[" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock FontSize="8" Text="{Binding StatusMessage}" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock Margin="1,0,0,0" FontSize="8" Text="]" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <ui:Button HorizontalAlignment="Stretch"
+                                   Command="{Binding ToggleConnectionCommand}"
+                                   Content="{Binding ConnectButtonText}">
+                            <ui:Button.Style>
+                                <Style BasedOn="{StaticResource {x:Type ui:Button}}" TargetType="ui:Button">
+                                    <Setter Property="Appearance" Value="Primary" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsConnected}" Value="True">
+                                            <Setter Property="Appearance" Value="Secondary" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </ui:Button.Style>
+                        </ui:Button>
+                    </StackPanel>
+                </Expander>
+            </ui:Card>
+
+            <!-- 이미지 업로드 카드 -->
+            <Grid Grid.Row="2">
+                <ui:Card Grid.Row="2" VerticalAlignment="Stretch" VerticalContentAlignment="Stretch">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0" Margin="0,0,0,12" FontSize="13" FontWeight="SemiBold" Text="이미지 업로드" />
+
+                        <!-- 드롭존 -->
+                        <Border
+                            Grid.Row="1"
+                            x:Name="QueryDropZone"
+                            MinHeight="160"
+                            MaxHeight="400"
+                            AllowDrop="True"
+                            Background="{DynamicResource ControlFillColorDefaultBrush}"
+                            BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                            BorderThickness="2"
+                            CornerRadius="8"
+                            Cursor="Hand"
+                            DragLeave="QueryZone_DragLeave"
+                            DragOver="QueryZone_DragOver"
+                            Drop="QueryZone_Drop"
+                            Margin="0,0,0,12"
+                            MouseLeftButtonDown="QueryZone_Click">
+                            <Grid>
+                                <Image
+                                    RenderOptions.BitmapScalingMode="HighQuality"
+                                    Source="{Binding QueryImage}"
+                                    Stretch="Uniform"
+                                    Visibility="{Binding QueryImage, Converter={StaticResource NullVis}}" />
+                                <Border Visibility="{Binding QueryImage, Converter={StaticResource NotNullVis}}">
+                                    <StackPanel Margin="20" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                        <ui:SymbolIcon HorizontalAlignment="Center" FontSize="52" Opacity="0.35" Symbol="ImageAdd24" />
+                                        <TextBlock Margin="0,12,0,4" HorizontalAlignment="Center" FontSize="13" Opacity="0.6" Text="여기에 이미지를 드래그" />
+                                        <TextBlock HorizontalAlignment="Center" FontSize="12" Opacity="0.45" Text="또는 클릭하여 선택" />
+                                    </StackPanel>
+                                </Border>
+                            </Grid>
+                        </Border>
+
+                        <!-- 이미지 정보 -->
+                        <TextBlock
+                            Grid.Row="2" Margin="10,0,10,8"
+                            HorizontalAlignment="Center" FontSize="11" Opacity="0.55"
+                            Text="{Binding ImageInfo}" TextTrimming="CharacterEllipsis"
+                            Visibility="{Binding QueryImage, Converter={StaticResource NullVis}}" />
+
+                        <!-- 파일 선택 / 초기화 / 분석 버튼 -->
+                        <StackPanel Grid.Row="3" HorizontalAlignment="Center" Orientation="Horizontal" Margin="0,0,0,4">
+                            <ui:Button Click="SelectFile_Click" Content="파일 선택"
+                                   Icon="{ui:SymbolIcon FolderOpen24}" Margin="4,0" />
+                            <ui:Button Command="{Binding ClearQueryCommand}" Content="초기화"
+                                   Icon="{ui:SymbolIcon Dismiss24}" Margin="4,0"
+                                   Visibility="{Binding QueryImage, Converter={StaticResource NullVis}}" />
+                        </StackPanel>
+                    </Grid>
+                </ui:Card>
+            </Grid>
+        </Grid>
+
+        <!-- 스플리터 -->
+        <GridSplitter Grid.Column="1" Width="2" HorizontalAlignment="Center"
+                      Background="{DynamicResource DividerStrokeColorDefaultBrush}" />
+
+        <!-- ═══════════════════════════════════════════════════ -->
+        <!-- 우측 패널: 분석 결과 히스토리                        -->
+        <!-- ═══════════════════════════════════════════════════ -->
+        <Grid Grid.Column="2" Margin="10,0,0,0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <!-- 헤더 툴바 -->
+            <Grid Grid.Row="0" Margin="0,0,0,12">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock FontSize="20" FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                               Text="세부속성 분석 결과"
+                               VerticalAlignment="Center" />
+                    <ui:Button Margin="10,0,0,0"
+                               Appearance="Primary"
+                               Command="{Binding AnalyzeCommand}"
+                               Content="속성 분석"
+                               Icon="{ui:SymbolIcon PersonSearch24}" />
+                    <!-- 분석 중 로딩 표시 -->
+                    <StackPanel Margin="12,0,0,0" Orientation="Horizontal" VerticalAlignment="Center"
+                                Visibility="{Binding IsAnalyzing, Converter={StaticResource BoolToVis}}">
+                        <ui:ProgressRing Width="20" Height="20" IsIndeterminate="True" />
+                        <TextBlock Margin="8,0,0,0" VerticalAlignment="Center" FontSize="12"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                   Text="분석 중..." />
+                    </StackPanel>
+                </StackPanel>
+
+                <ui:Button HorizontalAlignment="Right"
+                           Command="{Binding ClearHistoryCommand}"
+                           Appearance="Secondary"
+                           Icon="{ui:SymbolIcon Delete24}"
+                           Content="기록 초기화" />
+            </Grid>
+
+            <!-- 히스토리 목록 -->
+            <Grid Grid.Row="1">
+                <!-- 빈 상태 -->
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
+                            Visibility="{Binding AnalysisHistory.Count, Converter={StaticResource BoolToVis}, ConverterParameter=Inverse}">
+                    <ui:SymbolIcon HorizontalAlignment="Center" FontSize="64"
+                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                   Symbol="PersonSearch24" />
+                    <TextBlock Margin="0,12,0,0" FontSize="15"
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                               Text="이미지를 선택하고 속성 분석을 시작하세요" />
+                </StackPanel>
+
+                <ScrollViewer MaxHeight="{Binding ActualHeight, RelativeSource={RelativeSource AncestorType=Grid}}"
+                              HorizontalScrollBarVisibility="Disabled"
+                              VerticalScrollBarVisibility="Auto">
+                    <ScrollViewer.Style>
+                        <Style TargetType="ScrollViewer">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding AnalysisHistory.Count}" Value="0">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </ScrollViewer.Style>
+
+                    <ItemsControl ItemsSource="{Binding AnalysisHistory}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type models:AttributeResultItem}">
+                                <ui:Card Margin="0,0,0,12" Padding="0">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="180" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <!-- 인물 이미지 (크롭) -->
+                                        <Border Grid.Column="0"
+                                                MinHeight="200"
+                                                Background="{DynamicResource ControlFillColorDefaultBrush}"
+                                                CornerRadius="8,0,0,8">
+                                            <Grid>
+                                                <Image Margin="4"
+                                                       RenderOptions.BitmapScalingMode="HighQuality"
+                                                       Source="{Binding Image}"
+                                                       Stretch="Uniform" />
+                                                <!-- 로딩 오버레이 -->
+                                                <Border Background="#AA000000"
+                                                        CornerRadius="8,0,0,8"
+                                                        Visibility="{Binding IsAnalyzing, Converter={StaticResource BoolToVis}}">
+                                                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                        <ui:ProgressRing Width="36" Height="36"
+                                                                         HorizontalAlignment="Center"
+                                                                         IsIndeterminate="True" />
+                                                        <TextBlock FontSize="11" Foreground="White"
+                                                                   HorizontalAlignment="Center" Text="분석 중..." />
+                                                    </StackPanel>
+                                                </Border>
+                                            </Grid>
+                                        </Border>
+
+                                        <!-- 속성 정보 영역 -->
+                                        <Grid Grid.Column="1">
+                                            <ScrollViewer MaxHeight="440"
+                                                          HorizontalScrollBarVisibility="Disabled"
+                                                          VerticalScrollBarVisibility="Auto"
+                                                          Padding="12">
+                                                <StackPanel>
+                                                    <!-- 헤더: 타임스탬프 + 인원 레이블 + 삭제 -->
+                                                    <Grid Margin="0,0,0,10">
+                                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                            <TextBlock FontSize="11" Opacity="0.5"
+                                                                       Text="{Binding Timestamp}"
+                                                                       VerticalAlignment="Center" />
+                                                            <Border Margin="8,0,0,0" Padding="6,2"
+                                                                    Background="{DynamicResource SystemAccentColorPrimaryBrush}"
+                                                                    CornerRadius="4"
+                                                                    Visibility="{Binding PersonLabel, Converter={StaticResource NullVis}, TargetNullValue=Collapsed, FallbackValue=Collapsed}">
+                                                                <TextBlock FontSize="10" FontWeight="SemiBold"
+                                                                           Foreground="White"
+                                                                           Text="{Binding PersonLabel}" />
+                                                            </Border>
+                                                        </StackPanel>
+                                                        <ui:Button HorizontalAlignment="Right"
+                                                                   VerticalAlignment="Top"
+                                                                   Appearance="Secondary"
+                                                                   Command="{Binding DataContext.DeleteItemCommand, RelativeSource={RelativeSource AncestorType=Page}}"
+                                                                   CommandParameter="{Binding}"
+                                                                   Icon="{ui:SymbolIcon Dismiss16}"
+                                                                   Padding="4" />
+                                                    </Grid>
+
+                                                    <!-- 이미지 정보 -->
+                                                    <TextBlock Margin="0,0,0,10" FontSize="10" Opacity="0.45"
+                                                               Text="{Binding ImageInfo}"
+                                                               TextTrimming="CharacterEllipsis" />
+
+                                                    <!-- 속성 그룹 목록 -->
+                                                    <ItemsControl ItemsSource="{Binding AttributeGroups}"
+                                                                  Visibility="{Binding IsAnalyzing, Converter={StaticResource InvBoolToVis}}">
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate DataType="{x:Type models:AttributeDisplayGroup}">
+                                                                <StackPanel Margin="0,0,0,10">
+                                                                    <!-- 그룹 헤더 -->
+                                                                    <Border Margin="0,0,0,6" Padding="0,0,0,4"
+                                                                            BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
+                                                                            BorderThickness="0,0,0,1">
+                                                                        <TextBlock FontSize="11" FontWeight="SemiBold"
+                                                                                   Opacity="0.65"
+                                                                                   Text="{Binding GroupName}" />
+                                                                    </Border>
+
+                                                                    <!-- 속성 칩 WrapPanel -->
+                                                                    <ItemsControl ItemsSource="{Binding Items}">
+                                                                        <ItemsControl.ItemsPanel>
+                                                                            <ItemsPanelTemplate>
+                                                                                <WrapPanel />
+                                                                            </ItemsPanelTemplate>
+                                                                        </ItemsControl.ItemsPanel>
+                                                                        <ItemsControl.ItemTemplate>
+                                                                            <DataTemplate DataType="{x:Type models:AttributeDisplayItem}">
+                                                                                <Border Margin="0,0,6,6"
+                                                                                        Padding="8,5"
+                                                                                        Background="{DynamicResource ControlFillColorDefaultBrush}"
+                                                                                        CornerRadius="6">
+                                                                                    <StackPanel MinWidth="70">
+                                                                                        <!-- 속성명 + 값 -->
+                                                                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,3">
+                                                                                            <!-- 색상 속성: 컬러 닷 -->
+                                                                                            <Border
+                                                                                                Width="10" Height="10"
+                                                                                                Margin="0,0,4,0"
+                                                                                                CornerRadius="3"
+                                                                                                VerticalAlignment="Center"
+                                                                                                Visibility="{Binding IsColor, Converter={StaticResource BoolToVis}}">
+                                                                                                <Border.Background>
+                                                                                                    <SolidColorBrush Color="{Binding DominantBrush.Color}" />
+                                                                                                </Border.Background>
+                                                                                            </Border>
+
+                                                                                            <StackPanel>
+                                                                                                <TextBlock
+                                                                                                    FontSize="10" Opacity="0.55"
+                                                                                                    Text="{Binding Name}" />
+                                                                                                <StackPanel Orientation="Horizontal">
+                                                                                                    <TextBlock
+                                                                                                        FontSize="12"
+                                                                                                        FontWeight="SemiBold"
+                                                                                                        Text="{Binding Value}" />
+                                                                                                    <TextBlock
+                                                                                                        Margin="4,0,0,0"
+                                                                                                        FontSize="10"
+                                                                                                        Opacity="0.5"
+                                                                                                        VerticalAlignment="Bottom"
+                                                                                                        Text="{Binding ConfidenceText}" />
+                                                                                                </StackPanel>
+                                                                                            </StackPanel>
+                                                                                        </StackPanel>
+
+                                                                                        <!-- 신뢰도 바 -->
+                                                                                        <ProgressBar
+                                                                                            Height="2"
+                                                                                            Minimum="0" Maximum="1"
+                                                                                            Value="{Binding Confidence}"
+                                                                                            BorderThickness="0" />
+
+                                                                                        <!-- 색상 속성: 상위 색상 도트 목록 -->
+                                                                                        <ItemsControl
+                                                                                            Margin="0,4,0,0"
+                                                                                            ItemsSource="{Binding TopColors}"
+                                                                                            Visibility="{Binding IsColor, Converter={StaticResource BoolToVis}}">
+                                                                                            <ItemsControl.ItemsPanel>
+                                                                                                <ItemsPanelTemplate>
+                                                                                                    <StackPanel Orientation="Horizontal" />
+                                                                                                </ItemsPanelTemplate>
+                                                                                            </ItemsControl.ItemsPanel>
+                                                                                            <ItemsControl.ItemTemplate>
+                                                                                                <DataTemplate DataType="{x:Type models:ColorChip}">
+                                                                                                    <Border
+                                                                                                        Width="10" Height="10"
+                                                                                                        Margin="0,0,2,0"
+                                                                                                        CornerRadius="3"
+                                                                                                        ToolTip="{Binding PercentText}">
+                                                                                                        <Border.Background>
+                                                                                                            <SolidColorBrush Color="{Binding Brush.Color}" />
+                                                                                                        </Border.Background>
+                                                                                                    </Border>
+                                                                                                </DataTemplate>
+                                                                                            </ItemsControl.ItemTemplate>
+                                                                                        </ItemsControl>
+                                                                                    </StackPanel>
+                                                                                </Border>
+                                                                            </DataTemplate>
+                                                                        </ItemsControl.ItemTemplate>
+                                                                    </ItemsControl>
+                                                                </StackPanel>
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
+                                                </StackPanel>
+                                            </ScrollViewer>
+                                        </Grid>
+                                    </Grid>
+                                </ui:Card>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </Grid>
+        </Grid>
+    </Grid>
+</Page>
