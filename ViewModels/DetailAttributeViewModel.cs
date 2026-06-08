@@ -12,6 +12,8 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 using System.Windows.Media.Imaging;
 using Wpf.Ui;
@@ -22,6 +24,10 @@ namespace FaceSearchApp.ViewModels
     public partial class DetailAttributeViewModel : ObservableObject, IDisposable
     {
         private readonly ISnackbarService _snackbarService;
+
+        private readonly string _configPath =
+            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "appsettings.json");
+
         private readonly AttributeAnalysisService _service = new();
 
         // ── 서버 연결 설정 ────────────────────────────────────────────
@@ -47,7 +53,67 @@ namespace FaceSearchApp.ViewModels
         public DetailAttributeViewModel(ISnackbarService snackbarService)
         {
             _snackbarService = snackbarService;
+
+            LoadAttributeServerSettings();
         }
+
+        #region Attribute Server 설정 로드/저장
+        private void LoadAttributeServerSettings()
+        {
+            try
+            {
+                if (!File.Exists(_configPath))
+                    return;
+
+                var json = File.ReadAllText(_configPath);
+
+                using var doc = JsonDocument.Parse(json);
+
+                if (!doc.RootElement.TryGetProperty("AttributeServerSettings", out var att))
+                    return;
+
+                BaseUrl = att.GetProperty("BaseUrl").GetString() ?? BaseUrl;
+                ServerUsername = att.GetProperty("Username").GetString() ?? ServerUsername;
+                ServerPassword = att.GetProperty("Password").GetString() ?? ServerPassword;
+            }
+            catch
+            {
+
+            }
+        }
+        private void SaveAttributeServerSettings()
+        {
+            try
+            {
+                JsonObject root;
+
+                if (File.Exists(_configPath))
+                {
+                    var json = File.ReadAllText(_configPath);
+                    root = JsonNode.Parse(json)?.AsObject() ?? new JsonObject();
+                }
+                else
+                {
+                    root = new JsonObject();
+                }
+
+                root["AttributeServerSettings"] = new JsonObject
+                {
+                    ["BaseUrl"] = BaseUrl,
+                    ["Username"] = ServerUsername,
+                    ["Password"] = ServerPassword
+                };
+
+                var options = new JsonSerializerOptions
+                {
+                    WriteIndented = true
+                };
+
+                File.WriteAllText(_configPath, root.ToJsonString(options));
+            }
+            catch { }
+        }
+        #endregion
 
         // ═══════════════════════════════════════════════════════════════
         // 서버 연결 / 해제
@@ -83,6 +149,9 @@ namespace FaceSearchApp.ViewModels
                 ConnectionStatus = $"연결됨 · {BaseUrl}";
                 ConnectButtonText = "연결 해제";
                 StatusMessage = "서버 연결 성공.";
+
+                SaveAttributeServerSettings();
+
                 _snackbarService.Show("연결 성공", "세부속성 서버에 연결되었습니다.",
                     ControlAppearance.Success, new SymbolIcon(SymbolRegular.Checkmark24), TimeSpan.FromSeconds(2));
             }
