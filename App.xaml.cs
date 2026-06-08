@@ -38,6 +38,7 @@ namespace FaceSearchApp
                     services.AddSingleton<IContentDialogService, ContentDialogService>();
                     services.AddSingleton<MqttClientService>();
                     services.AddSingleton<AttributeAnalysisService>();
+                    services.AddSingleton<BenchmarkService>();
 
                     // ── ViewModels ──────────────────────────────────────
                     services.AddTransient<SearchViewModel>();
@@ -47,6 +48,7 @@ namespace FaceSearchApp
                     services.AddTransient<FaceRegistrationViewModel>();
                     services.AddSingleton<VlmViewModel>();
                     services.AddSingleton<DetailAttributeViewModel>();
+                    services.AddSingleton<BenchmarkViewModel>();
 
                     // ── Pages ───────────────────────────────────────────
                     services.AddTransient<SearchPage>();
@@ -56,6 +58,7 @@ namespace FaceSearchApp
                     services.AddTransient<FaceRegistrationPage>();
                     services.AddSingleton<VlmPage>();
                     services.AddSingleton<DetailAttributePage>();
+                    services.AddSingleton<BenchmarkPage>();
 
                     // ── Shell ───────────────────────────────────────────
                     services.AddSingleton<MainWindow>();

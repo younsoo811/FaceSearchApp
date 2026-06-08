@@ -1,0 +1,597 @@
+﻿<Page x:Class="FaceSearchApp.Views.BenchmarkPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+      xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+      xmlns:local="clr-namespace:FaceSearchApp.Views"
+      xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+      xmlns:models="clr-namespace:FaceSearchApp.Models"
+      xmlns:converters="clr-namespace:FaceSearchApp.Converters"
+      mc:Ignorable="d" 
+      d:DesignHeight="450" d:DesignWidth="800"
+      Title="BenchmarkPage">
+    <Page.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
+        <converters:InverseBoolToVisibilityConverter x:Key="InvBoolToVis" />
+        <converters:NullToVisibilityConverter x:Key="NullVis" />
+
+        <!-- 지표 카드 스타일 -->
+        <Style x:Key="MetricCard" TargetType="Border">
+            <Setter Property="Background"   Value="{DynamicResource ControlFillColorDefaultBrush}" />
+            <Setter Property="CornerRadius"  Value="8" />
+            <Setter Property="Padding"       Value="14,10" />
+            <Setter Property="Margin"        Value="4" />
+        </Style>
+    </Page.Resources>
+
+    <Grid Margin="16">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="320" MinWidth="280" />
+            <ColumnDefinition Width="8" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <!-- ══════════════════════════════════════════════════════ -->
+        <!-- 좌측 패널                                              -->
+        <!-- ══════════════════════════════════════════════════════ -->
+        <Grid Grid.Column="0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="10" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="10" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="10" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <!-- 서버 연결 설정 -->
+            <ui:Card Grid.Row="0">
+                <Expander IsExpanded="True">
+                    <Expander.Header>
+                        <TextBlock FontSize="13" FontWeight="SemiBold" Text="서버 연결 설정" />
+                    </Expander.Header>
+                    <StackPanel Margin="0,8,0,0">
+                        <StackPanel Margin="0,0,0,8">
+                            <TextBlock FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Text="서버 주소" />
+                            <ui:TextBox PlaceholderText="http://studio" Text="{Binding BaseUrl, UpdateSourceTrigger=PropertyChanged}" />
+                        </StackPanel>
+                        <StackPanel Margin="0,0,0,8">
+                            <TextBlock FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Text="사용자명" />
+                            <ui:TextBox PlaceholderText="Username" Text="{Binding ServerUsername, UpdateSourceTrigger=PropertyChanged}" />
+                        </StackPanel>
+                        <StackPanel Margin="0,0,0,8">
+                            <TextBlock FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Text="암호" />
+                            <ui:PasswordBox x:Name="PasswordBox"
+                                            PlaceholderText="Password"
+                                            Text="{Binding ServerPassword, UpdateSourceTrigger=PropertyChanged}" />
+                        </StackPanel>
+
+                        <Border Margin="0,0,0,8" Padding="8,6"
+                                Background="{DynamicResource ControlFillColorDefaultBrush}"
+                                CornerRadius="6">
+                            <StackPanel Orientation="Horizontal">
+                                <Ellipse Width="8" Height="8" Margin="0,0,8,0" VerticalAlignment="Center">
+                                    <Ellipse.Style>
+                                        <Style TargetType="Ellipse">
+                                            <Setter Property="Fill" Value="#E74C3C" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsConnected}" Value="True">
+                                                    <Setter Property="Fill" Value="#2ECC71" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Ellipse.Style>
+                                </Ellipse>
+                                <TextBlock FontSize="11" Text="{Binding ConnectionStatus}" TextTrimming="CharacterEllipsis" />
+                            </StackPanel>
+                        </Border>
+
+                        <ui:Button HorizontalAlignment="Stretch"
+                                   Command="{Binding ToggleConnectionCommand}"
+                                   Content="{Binding ConnectButtonText}">
+                            <ui:Button.Style>
+                                <Style BasedOn="{StaticResource {x:Type ui:Button}}" TargetType="ui:Button">
+                                    <Setter Property="Appearance" Value="Primary" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsConnected}" Value="True">
+                                            <Setter Property="Appearance" Value="Secondary" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </ui:Button.Style>
+                        </ui:Button>
+                    </StackPanel>
+                </Expander>
+            </ui:Card>
+
+            <!-- 테스트 설정 -->
+            <Grid Grid.Row="2">
+                <ui:Card VerticalAlignment="Stretch" VerticalContentAlignment="Stretch">
+                    <StackPanel>
+                        <TextBlock Margin="0,0,0,10" FontSize="13" FontWeight="SemiBold" Text="테스트 설정" />
+
+                        <Grid Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="8" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Grid.Column="0">
+                                <TextBlock FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Text="목표 TPS" />
+                                <ui:NumberBox Minimum="1" Maximum="1000" Value="{Binding TargetTps}"
+                                          ToolTip="초당 전송할 최대 요청 수" />
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="2">
+                                <TextBlock FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Text="최대 동시 요청" />
+                                <ui:NumberBox Minimum="1" Maximum="200" Value="{Binding MaxConcurrency}"
+                                          ToolTip="동시에 처리할 최대 요청 수" />
+                            </StackPanel>
+                        </Grid>
+
+                        <StackPanel Margin="0,0,0,0">
+                            <TextBlock FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Text="테스트 시간 (초, 0 = 무제한)" />
+                            <ui:NumberBox Minimum="0" Maximum="86400" Value="{Binding DurationSeconds}" />
+                        </StackPanel>
+                    </StackPanel>
+                </ui:Card>
+            </Grid>
+
+            <!-- 이미지 목록 -->
+            <Grid Grid.Row="4">
+                <ui:Card VerticalAlignment="Stretch" VerticalContentAlignment="Stretch">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+
+                        <Grid Grid.Row="0" Margin="0,0,0,8">
+                            <TextBlock FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center"
+                                   Text="{Binding Images.Count, StringFormat='테스트 이미지 ({0}장)', Mode=OneWay}" />
+                            <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
+                                <ui:Button Click="AddImages_Click" Padding="8,4"
+                                       Icon="{ui:SymbolIcon ImageAdd24}" ToolTip="이미지 추가" />
+                                <ui:Button Margin="4,0,0,0" Padding="8,4"
+                                       Command="{Binding ClearImagesCommand}"
+                                       Icon="{ui:SymbolIcon Delete24}" ToolTip="전체 삭제" />
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- 이미지 없음 안내 -->
+                        <StackPanel Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                Visibility="{Binding Images.Count, Converter={StaticResource BoolToVis}, ConverterParameter=Inverse, Mode=OneWay}">
+                            <ui:SymbolIcon FontSize="40" HorizontalAlignment="Center"
+                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                       Symbol="ImageAdd24" Opacity="0.4" />
+                            <TextBlock Margin="0,8,0,0" FontSize="11" Opacity="0.5"
+                                   HorizontalAlignment="Center" Text="이미지를 추가하세요" />
+                        </StackPanel>
+
+                        <!-- 이미지 목록 -->
+                        <Grid Grid.Row="1">
+                            
+                            <ScrollViewer Grid.Row="1" MaxHeight="{Binding ActualHeight, RelativeSource={RelativeSource AncestorType=Grid}}" VerticalScrollBarVisibility="Auto">
+                                <ItemsControl ItemsSource="{Binding Images}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate DataType="{x:Type models:BenchmarkImageItem}">
+                                            <Border Margin="0,0,0,4" Padding="6"
+                                            Background="{DynamicResource ControlFillColorDefaultBrush}"
+                                            CornerRadius="6">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="44" />
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+
+                                                    <Border Grid.Column="0" Width="40" Height="40"
+                                                    Background="{DynamicResource ControlFillColorTertiaryBrush}"
+                                                    CornerRadius="4" ClipToBounds="True">
+                                                        <Image Source="{Binding Thumbnail}" Stretch="UniformToFill" />
+                                                    </Border>
+
+                                                    <StackPanel Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Center">
+                                                        <TextBlock FontSize="11" FontWeight="SemiBold"
+                                                           Text="{Binding FileName}" TextTrimming="CharacterEllipsis" />
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <TextBlock FontSize="10" Opacity="0.5" Text="{Binding FileSizeText}" />
+                                                            <TextBlock Margin="6,0,0,0" FontSize="10">
+                                                                <TextBlock.Style>
+                                                                    <Style TargetType="TextBlock">
+                                                                        <Setter Property="Text"       Value="{Binding LoadStatus}" />
+                                                                        <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding IsLoaded}" Value="True">
+                                                                                <Setter Property="Foreground" Value="#2ECC71" />
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </TextBlock.Style>
+                                                            </TextBlock>
+                                                        </StackPanel>
+                                                    </StackPanel>
+
+                                                    <ui:Button Grid.Column="2"
+                                                       Command="{Binding DataContext.RemoveImageCommand, RelativeSource={RelativeSource AncestorType=Page}}"
+                                                       CommandParameter="{Binding}"
+                                                       Icon="{ui:SymbolIcon Dismiss16}"
+                                                       Padding="4" />
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </Grid>
+                    </Grid>
+                </ui:Card>
+            </Grid>
+
+            <!-- 시작 / 중지 버튼 -->
+            <Grid Grid.Row="6">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="8" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <ui:Button Grid.Column="0" HorizontalAlignment="Stretch"
+                           Appearance="Primary"
+                           Command="{Binding StartBenchmarkCommand}"
+                           Content="{Binding RunButtonText}"
+                           IsEnabled="{Binding IsRunning, Converter={StaticResource InvBoolToVis}, ConverterParameter=Bool}" />
+                <ui:Button Grid.Column="2"
+                           Appearance="Danger"
+                           Command="{Binding StopBenchmarkCommand}"
+                           Content="■  중지"
+                           Visibility="{Binding IsRunning, Converter={StaticResource BoolToVis}}" />
+            </Grid>
+        </Grid>
+
+        <!-- 스플리터 -->
+        <GridSplitter Grid.Column="1" Width="2" HorizontalAlignment="Center"
+                      Background="{DynamicResource DividerStrokeColorDefaultBrush}" />
+
+        <!-- ══════════════════════════════════════════════════════ -->
+        <!-- 우측 패널: 실시간 대시보드                              -->
+        <!-- ══════════════════════════════════════════════════════ -->
+        <Grid Grid.Column="2" Margin="10,0,0,0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <!-- 제목 + 상태 -->
+                <RowDefinition Height="Auto" />
+                <!-- TPS 핵심 지표 -->
+                <RowDefinition Height="Auto" />
+                <!-- 세부 지표 -->
+                <RowDefinition Height="140" />
+                <!-- TPS 차트 -->
+                <RowDefinition Height="60" />
+                <!-- 진행 바 -->
+                <RowDefinition Height="80" />
+                <!-- 최종 요약 -->
+                <RowDefinition Height="*" />
+                <!-- 로그 -->
+            </Grid.RowDefinitions>
+
+            <!-- 제목 -->
+            <Grid Grid.Row="0" Margin="0,0,0,10">
+                <TextBlock FontSize="20" FontWeight="SemiBold" VerticalAlignment="Center"
+                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                           Text="성능 평가 대시보드" />
+                <TextBlock HorizontalAlignment="Right" VerticalAlignment="Center"
+                           FontSize="11" Opacity="0.5"
+                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                           Text="{Binding StatusMessage}" />
+            </Grid>
+
+            <!-- TPS 핵심 지표 (큰 카드 2개) -->
+            <Grid Grid.Row="1" Margin="0,0,0,6">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <!-- 현재 TPS -->
+                <ui:Card Grid.Column="0">
+                    <StackPanel>
+                        <TextBlock FontSize="11" Opacity="0.55" Text="현재 TPS (3s 슬라이딩)" />
+                        <TextBlock FontSize="36" FontWeight="Bold" Foreground="#2ECC71"
+                                   Text="{Binding CurrentTps, StringFormat=F1}" />
+                        <TextBlock FontSize="10" Opacity="0.45"
+                                   Text="{Binding TargetTps, StringFormat='목표: {0} req/s'}" />
+                    </StackPanel>
+                </ui:Card>
+
+                <!-- 평균 TPS -->
+                <ui:Card Grid.Column="1">
+                    <StackPanel>
+                        <TextBlock FontSize="11" Opacity="0.55" Text="평균 TPS (전체)" />
+                        <TextBlock FontSize="36" FontWeight="Bold" Foreground="#3498DB"
+                                   Text="{Binding AverageTps, StringFormat=F1}" />
+                        <TextBlock FontSize="10" Opacity="0.45"
+                                   Text="{Binding PeakTps, StringFormat='최고: {0:F1} req/s'}" />
+                    </StackPanel>
+                </ui:Card>
+
+                <!-- 경과 시간 -->
+                <ui:Card Grid.Column="2">
+                    <StackPanel>
+                        <TextBlock FontSize="11" Opacity="0.55" Text="경과 / 남은 시간" />
+                        <TextBlock FontSize="36" FontWeight="Bold"
+                                   Text="{Binding ElapsedTime}" />
+                        <TextBlock FontSize="10" Opacity="0.45"
+                                   Text="{Binding RemainingTime, StringFormat='남은 시간: {0}'}" />
+                    </StackPanel>
+                </ui:Card>
+            </Grid>
+
+            <!-- 세부 지표 (6개 작은 카드) -->
+            <UniformGrid Grid.Row="2" Columns="6" Margin="0,0,0,6">
+                <ui:Card VerticalAlignment="Stretch">
+                    <StackPanel>
+                        <TextBlock FontSize="10" Opacity="0.55" Text="전체 요청" />
+                        <TextBlock FontSize="18" FontWeight="SemiBold"
+                                   Text="{Binding TotalRequests, StringFormat=N0}" />
+                    </StackPanel>
+                </ui:Card>
+                <ui:Card VerticalAlignment="Stretch">
+                    <StackPanel>
+                        <TextBlock FontSize="10" Opacity="0.55" Text="성공" />
+                        <TextBlock FontSize="18" FontWeight="SemiBold" Foreground="#2ECC71"
+                                   Text="{Binding SuccessCount, StringFormat=N0}" />
+                    </StackPanel>
+                </ui:Card>
+                <ui:Card VerticalAlignment="Stretch">
+                    <StackPanel>
+                        <TextBlock FontSize="10" Opacity="0.55" Text="오류 (오류율)" />
+                        <TextBlock FontSize="18" FontWeight="SemiBold" Foreground="#E74C3C"
+                                   Text="{Binding ErrorCount, StringFormat=N0}" />
+                        <TextBlock FontSize="10" Opacity="0.6" Foreground="#E74C3C"
+                                   Text="{Binding ErrorRate, StringFormat='{}{0:F1}%'}" />
+                    </StackPanel>
+                </ui:Card>
+                <ui:Card VerticalAlignment="Stretch">
+                    <StackPanel>
+                        <TextBlock FontSize="10" Opacity="0.55" Text="평균 응답" />
+                        <TextBlock FontSize="18" FontWeight="SemiBold"
+                                   Text="{Binding AvgResponseMs, StringFormat='{}{0:F0}ms'}" />
+                    </StackPanel>
+                </ui:Card>
+                <ui:Card VerticalAlignment="Stretch">
+                    <StackPanel>
+                        <TextBlock FontSize="10" Opacity="0.55" Text="최소 응답" />
+                        <TextBlock FontSize="18" FontWeight="SemiBold" Foreground="#2ECC71"
+                                   Text="{Binding MinResponseMs, StringFormat='{}{0}ms'}" />
+                    </StackPanel>
+                </ui:Card>
+                <ui:Card VerticalAlignment="Stretch">
+                    <StackPanel>
+                        <TextBlock FontSize="10" Opacity="0.55" Text="최대 응답" />
+                        <TextBlock FontSize="18" FontWeight="SemiBold" Foreground="#E74C3C"
+                                   Text="{Binding MaxResponseMs, StringFormat='{}{0}ms'}" />
+                    </StackPanel>
+                </ui:Card>
+            </UniformGrid>
+
+            <!-- TPS 히스토리 차트 -->
+            <ui:Card Grid.Row="3" Margin="0 0 0 6" VerticalAlignment="Stretch">
+                <Grid>
+                    <!-- 배경 가이드라인 -->
+                    <Canvas>
+                        <Line X1="0" Y1="22" X2="10000" Y2="22"
+                              Stroke="{DynamicResource DividerStrokeColorDefaultBrush}"
+                              StrokeThickness="0.5" StrokeDashArray="2,4" />
+                        <Line X1="0" Y1="44" X2="10000" Y2="44"
+                              Stroke="{DynamicResource DividerStrokeColorDefaultBrush}"
+                              StrokeThickness="0.5" StrokeDashArray="2,4" />
+                        <Line X1="0" Y1="66" X2="10000" Y2="66"
+                              Stroke="{DynamicResource DividerStrokeColorDefaultBrush}"
+                              StrokeThickness="0.5" StrokeDashArray="2,4" />
+                    </Canvas>
+
+                    <!-- TPS 바 차트 -->
+                    <ItemsControl ItemsSource="{Binding TpsHistory}" Margin="4">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <UniformGrid Rows="1" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type models:TpsBarItem}">
+                                <Grid VerticalAlignment="Stretch">
+                                    <Border
+                                        VerticalAlignment="Bottom"
+                                        Height="{Binding BarHeight}"
+                                        Background="{Binding BarBrush}"
+                                        Margin="0.5,0"
+                                        CornerRadius="2,2,0,0"
+                                        Opacity="0.85"
+                                        ToolTip="{Binding TpsValue, StringFormat='{}{0:F1} TPS'}" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <!-- 차트 레이블 -->
+                    <StackPanel VerticalAlignment="Top" HorizontalAlignment="Left" Margin="6,4">
+                        <TextBlock FontSize="10" Opacity="0.5" Text="TPS 히스토리 (최근 60초)" />
+                    </StackPanel>
+                    <TextBlock VerticalAlignment="Bottom" HorizontalAlignment="Right"
+                               Margin="6,0,6,4" FontSize="9" Opacity="0.35"
+                               Text="← 과거                 최근 →" />
+                </Grid>
+            </ui:Card>
+
+            <!-- 진행 바 -->
+            <ui:Card Grid.Row="4" Padding="4" Margin="0 0 0 6">
+                <Border Grid.Row="4" Margin="4,0,4,0" Padding="12,8"
+                    Background="{DynamicResource ControlFillColorDefaultBrush}"
+                    CornerRadius="8"
+                    Visibility="{Binding DurationSeconds, Converter={StaticResource NullVis}, TargetNullValue=Collapsed, FallbackValue=Visible}">
+                    <StackPanel>
+                        <Grid Margin="0,0,0,4">
+                            <TextBlock FontSize="11" Text="{Binding ElapsedTime, StringFormat='경과: {0}'}" />
+                            <TextBlock HorizontalAlignment="Center" FontSize="11"
+                                   Text="{Binding Progress, StringFormat='{}{0:F0}%'}" />
+                            <TextBlock HorizontalAlignment="Right" FontSize="11"
+                                   Text="{Binding RemainingTime, StringFormat='남은: {0}'}" />
+                        </Grid>
+                        <ProgressBar Height="6" Value="{Binding Progress}" Maximum="100"
+                                 BorderThickness="0" />
+                    </StackPanel>
+                </Border>
+            </ui:Card>
+
+            <!-- 최종 요약 -->
+            <ui:Card Grid.Row="5" Padding="4" Margin="0 0 0 6">
+                <Border Grid.Row="5" Margin="4,0,4,0" Padding="14,10"
+                    CornerRadius="8"
+                    Visibility="{Binding Summary, Converter={StaticResource NullVis}}">
+                    <Border.Background>
+                        <SolidColorBrush Color="#1A2ECC71" />
+                    </Border.Background>
+                    <StackPanel DataContext="{Binding Summary}">
+                        <TextBlock Margin="0,0,0,6" FontSize="12" FontWeight="SemiBold" Foreground="#2ECC71"
+                               Text="═══ 테스트 완료 — 최종 요약 ═══" />
+                        <WrapPanel>
+                            <TextBlock Margin="0,0,20,4" FontSize="12"
+                                   Text="{Binding ActualDurationSec, StringFormat='총 시간: {0:F1}초'}" />
+                            <TextBlock Margin="0,0,20,4" FontSize="12"
+                                   Text="{Binding TotalRequests, StringFormat='총 요청: {0:N0}건'}" />
+                            <TextBlock Margin="0,0,20,4" FontSize="12" Foreground="#2ECC71"
+                                   Text="{Binding SuccessCount, StringFormat='성공: {0:N0}건'}" />
+                            <TextBlock Margin="0,0,20,4" FontSize="12" Foreground="#E74C3C"
+                                   Text="{Binding ErrorCount, StringFormat='오류: {0:N0}건'}" />
+                            <TextBlock Margin="0,0,20,4" FontSize="12"
+                                   Text="{Binding AverageTps, StringFormat='평균 TPS: {0:F2}'}" />
+                            <TextBlock Margin="0,0,20,4" FontSize="12"
+                                   Text="{Binding PeakTps, StringFormat='최고 TPS: {0:F2}'}" />
+                            <TextBlock Margin="0,0,20,4" FontSize="12"
+                                   Text="{Binding AvgResponseMs, StringFormat='평균 응답: {0:F0}ms'}" />
+                            <TextBlock Margin="0,0,20,4" FontSize="12"
+                                   Text="{Binding MinResponseMs, StringFormat='최소 응답: {0}ms'}" />
+                            <TextBlock Margin="0,0,20,4" FontSize="12"
+                                   Text="{Binding MaxResponseMs, StringFormat='최대 응답: {0}ms'}" />
+                            <TextBlock Margin="0,0,0,4" FontSize="12" Foreground="#E74C3C"
+                                   Text="{Binding ErrorRate, StringFormat='오류율: {0:F1}%'}" />
+                        </WrapPanel>
+                    </StackPanel>
+                </Border>
+            </ui:Card>
+
+            <!-- 요청 로그 -->
+            <Grid Grid.Row="6">
+                <ui:Card Padding="5" VerticalAlignment="Stretch" VerticalContentAlignment="Stretch">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+
+                        <!-- 로그 헤더 -->
+                        <Border Grid.Row="0" Margin="4,0,4,4" Padding="10,6"
+                        Background="{DynamicResource ControlFillColorDefaultBrush}"
+                        CornerRadius="6">
+                            <Grid>
+                                <TextBlock FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center">
+                            <Run Text="요청 로그" />
+                            <Run Text="{Binding LogItems.Count, StringFormat='({0}건)', Mode=OneWay}"
+                                 Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                </TextBlock>
+                                <TextBlock HorizontalAlignment="Right" FontSize="10" Opacity="0.45"
+                                   VerticalAlignment="Center"
+                                   Text="#번호  상태  이미지명  응답시간  타임스탬프  원시 응답 미리보기" />
+                            </Grid>
+                        </Border>
+
+                        <!-- 로그 목록 -->
+                        <Grid Grid.Row="1">
+                            <ScrollViewer Grid.Row="1"
+                              MaxHeight="{Binding ActualHeight, RelativeSource={RelativeSource AncestorType=Grid}}"
+                              HorizontalScrollBarVisibility="Disabled"
+                              VerticalScrollBarVisibility="Auto">
+                                <ItemsControl ItemsSource="{Binding LogItems}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate DataType="{x:Type models:BenchmarkLogItem}">
+                                            <Border Margin="4,0,4,2" Padding="10,6"
+                                        Background="{DynamicResource ControlFillColorDefaultBrush}"
+                                        CornerRadius="4">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="54" />
+                                                        <!-- #번호 -->
+                                                        <ColumnDefinition Width="22" />
+                                                        <!-- ✓/✗ -->
+                                                        <ColumnDefinition Width="110" />
+                                                        <!-- 이미지명 -->
+                                                        <ColumnDefinition Width="64" />
+                                                        <!-- 응답 ms -->
+                                                        <ColumnDefinition Width="90" />
+                                                        <!-- 타임스탬프 -->
+                                                        <ColumnDefinition Width="*" />
+                                                        <!-- 미리보기 -->
+                                                    </Grid.ColumnDefinitions>
+
+                                                    <TextBlock Grid.Column="0"
+                                                   FontSize="11" FontFamily="Consolas"
+                                                   Opacity="0.55" VerticalAlignment="Center"
+                                                   Text="{Binding RequestNumber, StringFormat='#{0}'}" />
+
+                                                    <TextBlock Grid.Column="1"
+                                                   FontSize="13" FontWeight="Bold"
+                                                   Foreground="{Binding StatusBrush}"
+                                                   VerticalAlignment="Center"
+                                                   Text="{Binding StatusIcon}" />
+
+                                                    <TextBlock Grid.Column="2"
+                                                   FontSize="11" VerticalAlignment="Center"
+                                                   Text="{Binding ImageName}"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   ToolTip="{Binding ImageName}" />
+
+                                                    <TextBlock Grid.Column="3"
+                                                   FontSize="11" FontFamily="Consolas"
+                                                   Foreground="{Binding TimeBrush}"
+                                                   VerticalAlignment="Center"
+                                                   Text="{Binding ResponseTimeMs, StringFormat='{}{0}ms'}" />
+
+                                                    <TextBlock Grid.Column="4"
+                                                   FontSize="10" Opacity="0.5"
+                                                   VerticalAlignment="Center"
+                                                   Text="{Binding Timestamp}" />
+
+                                                    <!-- 성공: 원시 응답 미리보기 / 오류: 에러 메시지 -->
+                                                    <TextBlock Grid.Column="5" Margin="8,0,0,0"
+                                                   FontSize="10" FontFamily="Consolas"
+                                                   VerticalAlignment="Center"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   Opacity="0.55"
+                                                   ToolTip="{Binding RawPreview}">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Text" Value="{Binding RawPreview}" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsSuccess}" Value="False">
+                                                                        <Setter Property="Text"       Value="{Binding ErrorMessage}" />
+                                                                        <Setter Property="Foreground" Value="#E74C3C" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </Grid>
+                    </Grid>
+                </ui:Card>
+            </Grid>
+        </Grid>
+    </Grid>
+</Page>
