@@ -12,6 +12,8 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Media.Imaging;
@@ -24,6 +26,10 @@ namespace FaceSearchApp.ViewModels
     public partial class BenchmarkViewModel : ObservableObject, IDisposable
     {
         private readonly ISnackbarService _snackbar;
+        
+        private readonly string _configPath =
+            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "appsettings.json");
+
         private readonly BenchmarkService _service = new();
 
         private const int MaxLogItems = 500;
@@ -97,7 +103,70 @@ namespace FaceSearchApp.ViewModels
         private DateTime _lastChartUpdate = DateTime.MinValue;
         private List<BenchmarkImageItem>? _snapshotImages;
 
-        public BenchmarkViewModel(ISnackbarService snackbar) => _snackbar = snackbar;
+        public BenchmarkViewModel(ISnackbarService snackbar)
+        {
+            _snackbar = snackbar;
+
+            LoadAttributeServerSettings();
+        }
+
+        #region Attribute Server 설정 로드/저장
+        private void LoadAttributeServerSettings()
+        {
+            try
+            {
+                if (!File.Exists(_configPath))
+                    return;
+
+                var json = File.ReadAllText(_configPath);
+
+                using var doc = JsonDocument.Parse(json);
+
+                if (!doc.RootElement.TryGetProperty("AttributeServerSettings", out var att))
+                    return;
+
+                BaseUrl = att.GetProperty("BaseUrl").GetString() ?? BaseUrl;
+                ServerUsername = att.GetProperty("Username").GetString() ?? ServerUsername;
+                ServerPassword = att.GetProperty("Password").GetString() ?? ServerPassword;
+            }
+            catch
+            {
+
+            }
+        }
+        private void SaveAttributeServerSettings()
+        {
+            try
+            {
+                JsonObject root;
+
+                if (File.Exists(_configPath))
+                {
+                    var json = File.ReadAllText(_configPath);
+                    root = JsonNode.Parse(json)?.AsObject() ?? new JsonObject();
+                }
+                else
+                {
+                    root = new JsonObject();
+                }
+
+                root["AttributeServerSettings"] = new JsonObject
+                {
+                    ["BaseUrl"] = BaseUrl,
+                    ["Username"] = ServerUsername,
+                    ["Password"] = ServerPassword
+                };
+
+                var options = new JsonSerializerOptions
+                {
+                    WriteIndented = true
+                };
+
+                File.WriteAllText(_configPath, root.ToJsonString(options));
+            }
+            catch { }
+        }
+        #endregion
 
         // ═══════════════════════════════════════════════════════════════
         // 서버 연결
@@ -127,6 +196,9 @@ namespace FaceSearchApp.ViewModels
                 ConnectionStatus = $"연결됨 · {BaseUrl}";
                 ConnectButtonText = "연결 해제";
                 StatusMessage = "서버 연결 성공. 이미지를 추가하고 테스트를 시작하세요.";
+
+                SaveAttributeServerSettings();
+
                 _snackbar.Show("연결 성공", "벤치마크 서버에 연결되었습니다.",
                     ControlAppearance.Success, new SymbolIcon(SymbolRegular.Checkmark24), TimeSpan.FromSeconds(2));
             }
