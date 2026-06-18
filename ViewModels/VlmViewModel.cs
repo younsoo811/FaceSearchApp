@@ -415,8 +415,8 @@ namespace FaceSearchApp.ViewModels
                     id = item.Id.ToString(),
                     eventType = SelectedEventType?.Key ?? "Unknown",
                     classType = "Unknown",
-                    boundingBox = new BoundingBoxModel(),
-                    @confidence = 0,
+                    boundingBox = new Dictionary<string, List<double>>(),
+                    @confidence = new Dictionary<string, double>(),
                     @base64 = base64
                 });
 
@@ -783,14 +783,18 @@ namespace FaceSearchApp.ViewModels
                         var eventType = response.EventItem?.EventType ?? "Unknown";
                         var classType = response.EventItem?.ClassType ?? "Unknown";
                         var imageBase64 = response.EventItem?.ImageInfo.FullFrameBase64Data ?? string.Empty;
-                        var bbox = response.EventItem?.BoundingBox ?? new BoundingBoxModel();
-                        float confidence = response.AdditionalData?.Confidence ?? 0;
+                        //var bbox = response.EventItem?.BoundingBox ?? new BoundingBoxModel();
+                        
+                        //float confidence = response.AdditionalData?.Confidence ?? 0;
 
                         if ((!eventType.Contains("Fall") && !eventType.Contains("Fire")) || string.IsNullOrEmpty(imageBase64))
                         {
                             StatusMessage = $"실시간 이벤트 수신 (분석 생략): {eventType} ({classType})";
                             return;
                         }
+
+                        var bbox = response.EventItem?.BoundingBoxs ?? new Dictionary<string, List<double>>();
+                        var confidences = response.EventItem?.Confidences ?? new Dictionary<string, double>();
 
                         eventType = eventType.Contains("Fall", StringComparison.OrdinalIgnoreCase)
                             ? "Fall"
@@ -828,7 +832,7 @@ namespace FaceSearchApp.ViewModels
                             eventType = eventType,
                             classType = classType,
                             boundingBox = bbox,
-                            @confidence = confidence,
+                            @confidence = confidences,
                             @base64 = imageBase64
                         });
 
@@ -1120,7 +1124,7 @@ namespace FaceSearchApp.ViewModels
             bitmap.BeginInit();
             bitmap.UriSource = new Uri(path, UriKind.Absolute);
             bitmap.CacheOption = BitmapCacheOption.OnLoad;
-            bitmap.DecodePixelWidth = 800; // 메모리 최적화
+            //bitmap.DecodePixelWidth = 800; // 메모리 최적화
             bitmap.EndInit();
             bitmap.Freeze();
             return bitmap;
