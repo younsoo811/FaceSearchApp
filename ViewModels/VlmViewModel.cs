@@ -796,6 +796,18 @@ namespace FaceSearchApp.ViewModels
                         var bbox = response.EventItem?.BoundingBoxs ?? new Dictionary<string, List<double>>();
                         var confidences = response.EventItem?.Confidences ?? new Dictionary<string, double>();
 
+                        // Confidence 검증
+                        if (confidences.Count == 0)
+                        {
+                            StatusMessage = "Confidence 오류: 데이터가 비어있음";
+                            return;
+                        }
+                        if (confidences.Any(x => x.Value < 0))
+                        {
+                            StatusMessage = "Confidence 오류: 음수 값 존재";
+                            return;
+                        }
+
                         eventType = eventType.Contains("Fall", StringComparison.OrdinalIgnoreCase)
                             ? "Fall"
                             : eventType.Contains("Fire", StringComparison.OrdinalIgnoreCase)
