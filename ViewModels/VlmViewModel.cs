@@ -73,7 +73,7 @@ namespace FaceSearchApp.ViewModels
         public ObservableCollection<EventTypeItem> EventTypes { get; } =
         [
             new() { Key = "Fire", Display = "화재" },
-            new() { Key = "Fall", Display = "쓰러짐" }            
+            new() { Key = "Fall", Display = "쓰러짐" }
         ];
 
         [ObservableProperty]
@@ -135,8 +135,33 @@ namespace FaceSearchApp.ViewModels
             return item.Decision == key;
         }
 
+        private bool _isRevertingLiveEventMode;
+
         async partial void OnIsLiveEventModeChanged(bool oldValue, bool newValue)
         {
+            // 토글 되돌리기(연결 실패 시) 과정에서 재귀적으로 다시 들어오는 것을 방지
+            if (_isRevertingLiveEventMode) return;
+
+            if (newValue)
+            {
+                var connected = await EnsureConnectedAsync();
+                if (!connected)
+                {
+                    StatusMessage = "서버 연결 실패 - 서버 상태를 확인해주세요.";
+                    _snackbarService.Show(
+                        "실시간 분석 시작 실패",
+                        "서버에 연결할 수 없습니다. 서버 상태를 확인해주세요.",
+                        ControlAppearance.Danger,
+                        new SymbolIcon(SymbolRegular.ErrorCircle24),
+                        TimeSpan.FromSeconds(3));
+
+                    _isRevertingLiveEventMode = true;
+                    IsLiveEventMode = false;
+                    _isRevertingLiveEventMode = false;
+                    return;
+                }
+            }
+
             await ManageLiveEventTopic(newValue);
         }
         private async Task ManageLiveEventTopic(bool subscribe)
@@ -185,6 +210,12 @@ namespace FaceSearchApp.ViewModels
                 Password = vlm.GetProperty("Password").GetString() ?? Password;
 
                 UseCredentials = vlm.GetProperty("UseCredentials").GetBoolean();
+
+                if (vlm.TryGetProperty("SkipNoResponseTimeoutSeconds", out var timeoutProp)
+                    && timeoutProp.TryGetInt32(out var timeoutValue) && timeoutValue >= 1)
+                {
+                    SkipNoResponseTimeoutSeconds = timeoutValue;
+                }
             }
             catch
             {
@@ -219,7 +250,9 @@ namespace FaceSearchApp.ViewModels
                     ["Username"] = Username,
                     ["Password"] = Password,
 
-                    ["UseCredentials"] = UseCredentials
+                    ["UseCredentials"] = UseCredentials,
+
+                    ["SkipNoResponseTimeoutSeconds"] = SkipNoResponseTimeoutSeconds
                 };
 
                 var options = new JsonSerializerOptions
@@ -255,10 +288,23 @@ namespace FaceSearchApp.ViewModels
                 return;
             }
 
+            var connected = await EnsureConnectedAsync();
+            if (connected && !string.IsNullOrEmpty(_eventTopic) && IsLiveEventMode)
+            {
+                await _mqtt.SubscribeAsync(_eventTopic);
+                StatusMessage += $"구독 중: {_eventTopic}";
+            }
+        }
+
+        private async Task<bool> EnsureConnectedAsync()
+        {
+            if (_mqtt.IsConnected)
+                return true;
+
             if (string.IsNullOrWhiteSpace(Broker))
             {
                 StatusMessage = "브로커 주소를 입력하세요.";
-                return;
+                return false;
             }
 
             ConnectionStatus = "연결 중...";
@@ -284,11 +330,8 @@ namespace FaceSearchApp.ViewModels
                     await _mqtt.SubscribeAsync(SubTopic);
                     StatusMessage = $"구독 중: {SubTopic} ";
                 }
-                if (!string.IsNullOrEmpty(_eventTopic) && IsLiveEventMode)
-                {
-                    await _mqtt.SubscribeAsync(_eventTopic);
-                    StatusMessage += $"구독 중: {_eventTopic}";
-                }
+
+                return true;
             }
             else
             {
@@ -296,6 +339,7 @@ namespace FaceSearchApp.ViewModels
                 ConnectionStatus = "연결 실패";
                 ConnectButtonText = "연결";
                 StatusMessage = $"연결 실패: {error}";
+                return false;
             }
         }
 
@@ -382,7 +426,7 @@ namespace FaceSearchApp.ViewModels
 
             try
             {
-                if(IsContinuousMode)
+                if (IsContinuousMode)
                 {
                     _isContinuousModeBackup = IsContinuousMode;
                     await ContinuousModeAnalyzeAsync();
@@ -401,7 +445,7 @@ namespace FaceSearchApp.ViewModels
                     IsAnalyzing = true
                 };
 
-                if(_allHistory.Count > 99)
+                if (_allHistory.Count > 99)
                     _allHistory.RemoveAt(_allHistory.Count - 1);
 
                 // 히스토리 맨 위에 추가
@@ -609,7 +653,42 @@ namespace FaceSearchApp.ViewModels
 
         // ── 미응답 생략 ────────────────────────────────────────────
         [ObservableProperty] private bool _isSkipNoResponse;
+
+        // 미응답 생략 대기 시간(초). 사용자가 UI에서 조정 가능.
+        [ObservableProperty] private int _skipNoResponseTimeoutSeconds = 10;
+
         private CancellationTokenSource? _timeoutCts;
+
+        // 미응답 생략을 켜고 끌 때, 현재 진행 중인 요청에도 즉시 반영되도록 처리
+        partial void OnIsSkipNoResponseChanged(bool oldValue, bool newValue)
+        {
+            if (newValue)
+            {
+                // 현재 분석 중인 요청이 있으면 지금부터 타임아웃 적용
+                if (_currentAnalysisId.HasValue && IsAnalyzing)
+                    StartResponseTimeout(_currentAnalysisId.Value);
+            }
+            else
+            {
+                // 미응답 생략을 끄면 진행 중인 타임아웃도 즉시 취소
+                CancelResponseTimeout();
+            }
+        }
+
+        partial void OnSkipNoResponseTimeoutSecondsChanged(int oldValue, int newValue)
+        {
+            // 최소 1초 보장
+            if (newValue < 1)
+            {
+                SkipNoResponseTimeoutSeconds = 1;
+                return;
+            }
+
+            // 값이 바뀐 시점에 이미 대기 중인 타임아웃이 있으면 새 값으로 다시 시작
+            if (IsSkipNoResponse && _timeoutCts is not null && _currentAnalysisId.HasValue && IsAnalyzing)
+                StartResponseTimeout(_currentAnalysisId.Value);
+        }
+
         // ═══════════════════════════════════════════════════════════
         // 미응답 생략 타임아웃
         // ═══════════════════════════════════════════════════════════
@@ -621,13 +700,15 @@ namespace FaceSearchApp.ViewModels
             _timeoutCts = new CancellationTokenSource();
             var token = _timeoutCts.Token;
 
+            var timeoutSeconds = Math.Max(1, SkipNoResponseTimeoutSeconds);
+
             Task.Run(async () =>
             {
                 try
                 {
-                    await Task.Delay(TimeSpan.FromSeconds(10), token);
+                    await Task.Delay(TimeSpan.FromSeconds(timeoutSeconds), token);
 
-                    // 10초 경과 → UI 스레드에서 처리
+                    // 타임아웃 경과 → UI 스레드에서 처리
                     Application.Current.Dispatcher.Invoke(() =>
                     {
                         var item = _allHistory.FirstOrDefault(x => x.Id == itemId && x.IsAnalyzing);
@@ -643,7 +724,7 @@ namespace FaceSearchApp.ViewModels
 
                         _snackbarService.Show(
                             "응답 시간 초과",
-                            "10초 내 응답이 없어 해당 요청이 자동으로 삭제되었습니다.",
+                            $"{timeoutSeconds}초 내 응답이 없어 해당 요청이 자동으로 삭제되었습니다.",
                             ControlAppearance.Caution,
                             new SymbolIcon(SymbolRegular.ClockAlarm24),
                             TimeSpan.FromSeconds(3));
@@ -682,7 +763,7 @@ namespace FaceSearchApp.ViewModels
                         AnalysisItem? targetItem = null;
 
                         // 응답에 id가 있으면 매칭 시도
-                        if(!string.IsNullOrEmpty(response.Id) && Guid.TryParse(response.Id, out var guid))
+                        if (!string.IsNullOrEmpty(response.Id) && Guid.TryParse(response.Id, out var guid))
                         {
                             targetItem = _allHistory.FirstOrDefault(x => x.Id == guid);
                         }
@@ -731,7 +812,7 @@ namespace FaceSearchApp.ViewModels
                                         IsAnalyzing = false;
                                         _isRealtimeCooldown = false;
 
-                                        if(IsLiveEventMode)
+                                        if (IsLiveEventMode)
                                             StatusMessage = "실시간 이벤트 대기 중...";
                                     });
                                 });
@@ -766,26 +847,23 @@ namespace FaceSearchApp.ViewModels
                 {
                     try
                     {
-                        var options = new JsonSerializerOptions
-                        {
-                            PropertyNameCaseInsensitive = true
-                        };
-
                         var response = JsonSerializer.Deserialize<MqttEventDataModel>(
                             payload,
-                            options);
-                        if (response is null)
+                            new JsonSerializerOptions
+                            {
+                                PropertyNameCaseInsensitive = true
+                            });
+
+                        if (response == null)
                         {
-                            StatusMessage = "응답 파싱 실패: null 응답";
+                            StatusMessage = "응답 파싱 실패";
                             return;
                         }
 
-                        var eventType = response.EventItem?.EventType ?? "Unknown";
-                        var classType = response.EventItem?.ClassType ?? "Unknown";
-                        var imageBase64 = response.EventItem?.ImageInfo.FullFrameBase64Data ?? string.Empty;
-                        //var bbox = response.EventItem?.BoundingBox ?? new BoundingBoxModel();
-                        
-                        //float confidence = response.AdditionalData?.Confidence ?? 0;
+                        var eventItem = response.EventItem;
+                        var eventType = eventItem.EventType ?? "Unknown";
+                        var classType = eventItem.ClassType ?? "Unknown";
+                        var imageBase64 = eventItem.ImageInfo.FullFrameBase64Data;
 
                         if ((!eventType.Contains("Fall") && !eventType.Contains("Fire")) || string.IsNullOrEmpty(imageBase64))
                         {
@@ -793,36 +871,57 @@ namespace FaceSearchApp.ViewModels
                             return;
                         }
 
-                        var bbox = response.EventItem?.BoundingBoxs ?? new Dictionary<string, List<double>>();
-                        var confidences = response.EventItem?.Confidences ?? new Dictionary<string, double>();
-
-                        // Confidence 검증
-                        if (confidences.Count == 0)
-                        {
-                            StatusMessage = "Confidence 오류: 데이터가 비어있음";
-                            return;
-                        }
-                        if (confidences.Any(x => x.Value < 0))
-                        {
-                            StatusMessage = "Confidence 오류: 음수 값 존재";
-                            return;
-                        }
-
-                        eventType = eventType.Contains("Fall", StringComparison.OrdinalIgnoreCase)
-                            ? "Fall"
-                            : eventType.Contains("Fire", StringComparison.OrdinalIgnoreCase)
-                                ? "Fire"
-                                : eventType;
+                        eventType = eventType.Contains("Fall", StringComparison.OrdinalIgnoreCase) ? "Fall" : "Fire";
 
                         if (!IsLiveFireEventMode && eventType.Equals("Fire"))
                             return;
                         if (!IsLiveFallEventMode && eventType.Equals("Fall"))
                             return;
 
+                        var confidences = eventItem.Confidences;
+                        if (confidences.Count == 0 && eventItem.Confidence.Count > 0)
+                        {
+                            confidences = eventItem.Confidence.ToDictionary(
+                                _ => eventItem.ObjectId.ToString(),
+                                x => x);
+                        }
+
+                        var bbox = eventItem.BoundingBoxs;
+                        if (bbox.Count == 0)
+                        {
+                            bbox = new Dictionary<string, List<double>>
+                            {
+                                [eventItem.ObjectId.ToString()] = new()
+                                {
+                                    eventItem.BoundingBox.X,
+                                    eventItem.BoundingBox.Y,
+                                    eventItem.BoundingBox.Width,
+                                    eventItem.BoundingBox.Height
+                                }
+                            };
+                        }
+
+                        // 음수 Confidence 제거
+                        var invalidKeys = confidences
+                            .Where(x => x.Value < 0)
+                            .Select(x => x.Key)
+                            .ToList();
+
+                        foreach (var key in invalidKeys)
+                        {
+                            confidences.Remove(key);
+                            bbox.Remove(key);
+                        }
+
+                        if (confidences.Count == 0)
+                        {
+                            StatusMessage = "Confidence 오류: 데이터 없음";
+                            return;
+                        }
+
                         // 새 분석 아이템 생성
                         BitmapImage image = Base64ToBitmapImage(imageBase64);
-                        //QueryImage = image;
-                        //ImageInfo = $"{eventType} · {classType} · {image.PixelWidth}×{image.PixelHeight}";
+
                         var item = new AnalysisItem
                         {
                             Image = image,
@@ -830,7 +929,7 @@ namespace FaceSearchApp.ViewModels
                             IsAnalyzing = true
                         };
 
-                        if (_allHistory.Count > 99)
+                        if (_allHistory.Count >= 100)
                             _allHistory.RemoveAt(_allHistory.Count - 1);
 
                         // 히스토리 맨 위에 추가

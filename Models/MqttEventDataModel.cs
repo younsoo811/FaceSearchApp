@@ -28,8 +28,8 @@ namespace FaceSearchApp.Models
 
         public string ClassType { get; set; } = string.Empty; 
 
-        //public List<double> Confidences { get; set; } = new();
-        public double Confidence { get; set; }
+        public List<double> Confidence { get; set; } = new();
+        //public double Confidence { get; set; }
         public Dictionary<string, double> Confidences { get; set; } = new();
 
         public int ObjectId { get; set; }

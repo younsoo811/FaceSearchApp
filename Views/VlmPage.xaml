@@ -403,8 +403,30 @@
                             <ui:ToggleSwitch
                                 Content="미응답 생략"
                                 IsChecked="{Binding IsSkipNoResponse}"
-                                IsEnabled="{Binding IsLiveEventMode}"
-                                ToolTip="10초 이내 응답이 없으면 해당 요청을 자동으로 삭제합니다." />
+                                IsEnabled="{Binding IsLiveEventMode}">
+                                <ui:ToggleSwitch.ToolTip>
+                                    <TextBlock>
+                                        <Run Text="설정한 시간(초) 이내 응답이 없으면 해당 요청을 자동으로 삭제합니다." />
+                                    </TextBlock>
+                                </ui:ToggleSwitch.ToolTip>
+                            </ui:ToggleSwitch>
+
+                            <ui:NumberBox
+                                Margin="8,0,0,0"
+                                Width="100"
+                                Minimum="1"
+                                Maximum="600"
+                                SpinButtonPlacementMode="Compact"
+                                Value="{Binding SkipNoResponseTimeoutSeconds}"
+                                IsEnabled="{Binding IsSkipNoResponse}"
+                                ToolTip="미응답 생략까지 대기할 시간(초)" />
+                            <TextBlock
+                                Margin="4,0,0,0"
+                                VerticalAlignment="Center"
+                                FontSize="11"
+                                Opacity="0.6"
+                                Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                Text="초" />
                         </StackPanel>
 
                         <Rectangle Fill="DarkGray" Width="2" Margin="0 0 10 0"/>
@@ -461,7 +483,7 @@
                 <ui:Button Command="{Binding ClearHistoryCommand}"
                        Appearance="Secondary"
                        Icon="{ui:SymbolIcon Delete24}"
-                       Content="분석 기록 초기화"
+                           ToolTip="분석 기록 초기화"
                        HorizontalAlignment="Right"
                            VerticalAlignment="Stretch"
                        />
@@ -499,7 +521,7 @@
                                                 RenderOptions.BitmapScalingMode="HighQuality"
                                                 Source="{Binding Image}"
                                                 Stretch="Uniform" />
-                                                
+
                                                 <!-- 화재 여부 배지 -->
                                                 <Grid Margin="5" VerticalAlignment="Top" HorizontalAlignment="Right" Visibility="{Binding IsAnalyzing, Converter={StaticResource InvBoolToVis}}">
                                                     <Border
