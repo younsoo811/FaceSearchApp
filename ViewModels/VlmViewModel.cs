@@ -27,10 +27,11 @@ using Wpf.Ui.Controls;
 
 namespace FaceSearchApp.ViewModels
 {
-    public class EventTypeItem
+    public partial class EventTypeItem : ObservableObject
     {
         public string Key { get; set; } = string.Empty;     // 실제 값
         public string Display { get; set; } = string.Empty; // 화면 표시
+        [ObservableProperty] private bool _isLiveEnabled = true;
     }
 
     public partial class VlmViewModel : ObservableObject, IDisposable
@@ -70,11 +71,7 @@ namespace FaceSearchApp.ViewModels
         private bool _isContinuousMode;
         private bool _isContinuousModeBackup;
 
-        public ObservableCollection<EventTypeItem> EventTypes { get; } =
-        [
-            new() { Key = "Fire", Display = "화재" },
-            new() { Key = "Fall", Display = "쓰러짐" }
-        ];
+        public ObservableCollection<EventTypeItem> EventTypes { get; } = new();
 
         [ObservableProperty]
         private EventTypeItem? _selectedEventType;
@@ -90,10 +87,6 @@ namespace FaceSearchApp.ViewModels
 
         [ObservableProperty]
         private bool _isLiveEventMode = false;
-        [ObservableProperty]
-        private bool _isLiveFireEventMode = true;
-        [ObservableProperty]
-        private bool _isLiveFallEventMode = true;
 
         // ── 분석 상태 ──────────────────────────────────────────────
         [ObservableProperty] private bool _isAnalyzing;
@@ -108,14 +101,14 @@ namespace FaceSearchApp.ViewModels
             _snackbarService = snackbarService;
             _dialogService = dialogService;
 
-            _selectedEventType = EventTypes.FirstOrDefault();
-            _selectedLabelType = LabelTypes.FirstOrDefault();
-
             // CollectionView 필터 설정
             AnalysisHistory = CollectionViewSource.GetDefaultView(_allHistory);
             AnalysisHistory.Filter = FilterItem;
 
             LoadVlmSettings();
+            EnsureDefaultEventTypes();
+            _selectedEventType = EventTypes.FirstOrDefault();
+            _selectedLabelType = LabelTypes.FirstOrDefault();
 
             _mqtt.MessageReceived += OnMqttMessageReceived;
         }
@@ -216,12 +209,80 @@ namespace FaceSearchApp.ViewModels
                 {
                     SkipNoResponseTimeoutSeconds = timeoutValue;
                 }
+
+                LoadEventTypes(vlm);
             }
             catch
             {
                 // 실패 시 기본값 유지
             }
         }
+
+        private void LoadEventTypes(JsonElement vlm)
+        {
+            if (!vlm.TryGetProperty("EventTypes", out var eventTypesProp) ||
+                eventTypesProp.ValueKind != JsonValueKind.Array)
+            {
+                return;
+            }
+
+            var items = new List<EventTypeItem>();
+
+            foreach (var item in eventTypesProp.EnumerateArray())
+            {
+                EventTypeItem? eventType = item.ValueKind switch
+                {
+                    JsonValueKind.String => CreateEventTypeItem(item.GetString(), null, true),
+                    JsonValueKind.Object => CreateEventTypeItem(
+                        item.TryGetProperty("Key", out var keyProp) ? keyProp.GetString() : null,
+                        item.TryGetProperty("Display", out var displayProp) ? displayProp.GetString() : null,
+                        !item.TryGetProperty("IsLiveEnabled", out var liveProp) ||
+                        liveProp.ValueKind != JsonValueKind.False),
+                    _ => null
+                };
+
+                if (eventType is null ||
+                    items.Any(x => x.Key.Equals(eventType.Key, StringComparison.OrdinalIgnoreCase)))
+                {
+                    continue;
+                }
+
+                items.Add(eventType);
+            }
+
+            if (items.Count == 0)
+                return;
+
+            EventTypes.Clear();
+            foreach (var item in items)
+                EventTypes.Add(item);
+        }
+
+        private static EventTypeItem? CreateEventTypeItem(string? key, string? display, bool isLiveEnabled)
+        {
+            if (string.IsNullOrWhiteSpace(key))
+                return null;
+
+            var normalizedKey = key.Trim();
+            return new EventTypeItem
+            {
+                Key = normalizedKey,
+                Display = string.IsNullOrWhiteSpace(display) ? normalizedKey : display.Trim(),
+                IsLiveEnabled = isLiveEnabled
+            };
+        }
+
+        private void EnsureDefaultEventTypes()
+        {
+            if (EventTypes.Count > 0)
+                return;
+
+            EventTypes.Add(new EventTypeItem { Key = "Fire", Display = "화재" });
+            EventTypes.Add(new EventTypeItem { Key = "Fall", Display = "쓰러짐" });
+            EventTypes.Add(new EventTypeItem { Key = "WorkAtHeight", Display = "고소작업" });
+            EventTypes.Add(new EventTypeItem { Key = "ElectricalWork", Display = "전기작업" });
+        }
+
         private void SaveVlmSettings()
         {
             try
@@ -252,7 +313,15 @@ namespace FaceSearchApp.ViewModels
 
                     ["UseCredentials"] = UseCredentials,
 
-                    ["SkipNoResponseTimeoutSeconds"] = SkipNoResponseTimeoutSeconds
+                    ["SkipNoResponseTimeoutSeconds"] = SkipNoResponseTimeoutSeconds,
+
+                    ["EventTypes"] = new JsonArray(
+                        EventTypes.Select(x => new JsonObject
+                        {
+                            ["Key"] = x.Key,
+                            ["Display"] = x.Display,
+                            ["IsLiveEnabled"] = x.IsLiveEnabled
+                        }).ToArray<JsonNode?>())
                 };
 
                 var options = new JsonSerializerOptions
@@ -837,7 +906,7 @@ namespace FaceSearchApp.ViewModels
                     }
                 });
             }
-            else if (topic.StartsWith("infer_app/events/", StringComparison.OrdinalIgnoreCase) && IsLiveEventMode)
+            else if (IsEventTopic(topic) && IsLiveEventMode)
             {
                 // 분석 중에는 실시간 이벤트 무시
                 if (IsAnalyzing || _isRealtimeCooldown)
@@ -865,17 +934,15 @@ namespace FaceSearchApp.ViewModels
                         var classType = eventItem.ClassType ?? "Unknown";
                         var imageBase64 = eventItem.ImageInfo.FullFrameBase64Data;
 
-                        if ((!eventType.Contains("Fall") && !eventType.Contains("Fire")) || string.IsNullOrEmpty(imageBase64))
+                        var configuredEventType = FindConfiguredEventType(eventType);
+                        if (configuredEventType is null || string.IsNullOrEmpty(imageBase64))
                         {
                             StatusMessage = $"실시간 이벤트 수신 (분석 생략): {eventType} ({classType})";
                             return;
                         }
 
-                        eventType = eventType.Contains("Fall", StringComparison.OrdinalIgnoreCase) ? "Fall" : "Fire";
-
-                        if (!IsLiveFireEventMode && eventType.Equals("Fire"))
-                            return;
-                        if (!IsLiveFallEventMode && eventType.Equals("Fall"))
+                        eventType = configuredEventType.Key;
+                        if (!configuredEventType.IsLiveEnabled)
                             return;
 
                         var confidences = eventItem.Confidences;
@@ -963,6 +1030,28 @@ namespace FaceSearchApp.ViewModels
                     }
                 });
             }
+        }
+
+        private bool IsEventTopic(string topic)
+        {
+            if (string.IsNullOrWhiteSpace(_eventTopic))
+                return false;
+
+            var wildcardIndex = _eventTopic.IndexOfAny(['#', '+']);
+            if (wildcardIndex < 0)
+                return topic.Equals(_eventTopic, StringComparison.OrdinalIgnoreCase);
+
+            var prefix = _eventTopic[..wildcardIndex];
+            return topic.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private EventTypeItem? FindConfiguredEventType(string eventType)
+        {
+            if (string.IsNullOrWhiteSpace(eventType))
+                return null;
+
+            return EventTypes.FirstOrDefault(x =>
+                eventType.Contains(x.Key, StringComparison.OrdinalIgnoreCase));
         }
 
 

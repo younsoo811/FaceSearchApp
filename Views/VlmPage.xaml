@@ -446,15 +446,21 @@
                                 </Style>
                             </StackPanel.Style>
 
-                            <ui:ToggleSwitch
-                                Margin="0,0,12,0"
-                                Content="화재 분석"
-                                IsChecked="{Binding IsLiveFireEventMode}" />
-
-                            <ui:ToggleSwitch
-                                Margin="0,0,0,0"
-                                Content="쓰러짐 분석"
-                                IsChecked="{Binding IsLiveFallEventMode}" />
+                            <ItemsControl ItemsSource="{Binding EventTypes}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Horizontal" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <ui:ToggleSwitch
+                                            Margin="0,0,12,0"
+                                            Content="{Binding Display}"
+                                            IsChecked="{Binding IsLiveEnabled, Mode=TwoWay}" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
                         </StackPanel>
 
                     </StackPanel>
