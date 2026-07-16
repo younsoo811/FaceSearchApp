@@ -2,6 +2,7 @@
 using CommunityToolkit.Mvvm.Input;
 using FaceSearchApp.Models;
 using FaceSearchApp.Services;
+using FaceSearchApp.Views;
 using Microsoft.Win32;
 using System;
 using System.Buffers.Text;
@@ -1054,6 +1055,137 @@ namespace FaceSearchApp.ViewModels
                 eventType.Contains(x.Key, StringComparison.OrdinalIgnoreCase));
         }
 
+        [RelayCommand]
+        private async Task ConfigureEventTypesAsync()
+        {
+            var draft = new ObservableCollection<EventTypeItem>(
+                EventTypes.Select(CloneEventTypeItem));
+
+            while (true)
+            {
+                var content = new VlmEventTypeSettingsDialog(draft);
+                var dialog = new ContentDialog(_dialogService.GetContentPresenter())
+                {
+                    Title = "실시간 이벤트 타입 설정",
+                    Content = content,
+                    PrimaryButtonText = "적용",
+                    CloseButtonText = "취소"
+                };
+
+                var result = await _dialogService.ShowAsync(dialog, CancellationToken.None);
+                if (result != ContentDialogResult.Primary)
+                    return;
+
+                content.CommitEdits();
+
+                var validationMessage = ValidateEventTypes(draft);
+                if (!string.IsNullOrEmpty(validationMessage))
+                {
+                    _snackbarService.Show(
+                        "이벤트 타입 설정 오류",
+                        validationMessage,
+                        ControlAppearance.Danger,
+                        new SymbolIcon(SymbolRegular.ErrorCircle24),
+                        TimeSpan.FromSeconds(3));
+                    continue;
+                }
+
+                var originalSignature = GetEventTypesSignature(EventTypes);
+                var draftSignature = GetEventTypesSignature(draft);
+                if (originalSignature == draftSignature)
+                {
+                    StatusMessage = "변경된 이벤트 타입 설정이 없습니다.";
+                    return;
+                }
+
+                ApplyEventTypes(draft);
+
+                var saveResult = System.Windows.MessageBox.Show(
+                    "변경된 이벤트 타입 설정 저장할까요?",
+                    "이벤트 타입 설정 저장",
+                    System.Windows.MessageBoxButton.YesNo,
+                    MessageBoxImage.Question);
+
+                if (saveResult == System.Windows.MessageBoxResult.Yes)
+                {
+                    SaveVlmSettings();
+                    _snackbarService.Show(
+                        "설정 저장 완료",
+                        "이벤트 타입 설정이 저장되었습니다.",
+                        ControlAppearance.Success,
+                        new SymbolIcon(SymbolRegular.Checkmark24),
+                        TimeSpan.FromSeconds(3));
+                }
+                else
+                {
+                    StatusMessage = "이벤트 타입 설정이 현재 실행 중인 화면에만 적용되었습니다.";
+                }
+
+                return;
+            }
+        }
+
+        private static EventTypeItem CloneEventTypeItem(EventTypeItem item)
+        {
+            return new EventTypeItem
+            {
+                Key = item.Key,
+                Display = item.Display,
+                IsLiveEnabled = item.IsLiveEnabled
+            };
+        }
+
+        private static string? ValidateEventTypes(IEnumerable<EventTypeItem> items)
+        {
+            var normalized = items
+                .Select(x => x.Key?.Trim() ?? string.Empty)
+                .ToList();
+
+            if (normalized.Count == 0)
+                return "최소 1개의 이벤트 타입이 필요합니다.";
+
+            if (normalized.Any(string.IsNullOrWhiteSpace))
+                return "Key가 비어 있는 이벤트 타입이 있습니다.";
+
+            var duplicatedKey = normalized
+                .GroupBy(x => x, StringComparer.OrdinalIgnoreCase)
+                .FirstOrDefault(x => x.Count() > 1)
+                ?.Key;
+
+            return duplicatedKey is null
+                ? null
+                : $"중복된 Key가 있습니다: {duplicatedKey}";
+        }
+
+        private static string GetEventTypesSignature(IEnumerable<EventTypeItem> items)
+        {
+            return string.Join(
+                "\n",
+                items.Select(x =>
+                    $"{x.Key.Trim()}|{x.Display.Trim()}|{x.IsLiveEnabled}"));
+        }
+
+        private void ApplyEventTypes(IEnumerable<EventTypeItem> items)
+        {
+            var selectedKey = SelectedEventType?.Key;
+            var nextItems = items
+                .Select(x => new EventTypeItem
+                {
+                    Key = x.Key.Trim(),
+                    Display = string.IsNullOrWhiteSpace(x.Display) ? x.Key.Trim() : x.Display.Trim(),
+                    IsLiveEnabled = x.IsLiveEnabled
+                })
+                .ToList();
+
+            EventTypes.Clear();
+            foreach (var item in nextItems)
+                EventTypes.Add(item);
+
+            SelectedEventType = EventTypes.FirstOrDefault(x =>
+                x.Key.Equals(selectedKey, StringComparison.OrdinalIgnoreCase))
+                ?? EventTypes.FirstOrDefault();
+        }
+
 
         [RelayCommand]
         private async Task ShowDetailAsync(AnalysisItem item)
@@ -1063,7 +1195,7 @@ namespace FaceSearchApp.ViewModels
             var dialog = new ContentDialog(_dialogService.GetContentPresenter())
             {
                 Title = "분석 결과 상세",
-                Content = BuildDetailContent(item),
+                Content = new VlmAnalysisDetailDialog(item, IsFireMode, _snackbarService),
                 CloseButtonText = "닫기"
             };
 
@@ -1091,227 +1223,6 @@ namespace FaceSearchApp.ViewModels
             };
 
             await _dialogService.ShowAsync(dialog, CancellationToken.None);
-        }
-
-        private UIElement BuildDetailContent(AnalysisItem item)
-        {
-            var root = new StackPanel { Width = 500, Margin = new Thickness(0, 4, 0, 0) };
-
-            // ── 이미지 + FireLabel 배지 ──────────────────────────
-            var imgBorder = new Border
-            {
-                Background = (Brush)Application.Current.Resources["ControlFillColorDefaultBrush"],
-                CornerRadius = new CornerRadius(8),
-                MaxHeight = 340,
-                Margin = new Thickness(0, 0, 0, 14),
-                ClipToBounds = true
-            };
-
-            var imgGrid = new Grid();
-
-            var img = new System.Windows.Controls.Image
-            {
-                Source = item.Image,
-                Stretch = Stretch.Uniform,
-                Margin = new Thickness(6)
-            };
-            RenderOptions.SetBitmapScalingMode(img, BitmapScalingMode.HighQuality);
-            // 우클릭 컨텍스트 메뉴
-            img.ContextMenu = BuildImageContextMenu(item);
-            imgGrid.Children.Add(img);
-
-            // FireLabel 배지 (이미지 우상단)
-            if (IsFireMode && !string.IsNullOrEmpty(item.FireLabel))
-            {
-                var badge = new Border
-                {
-                    Background = item.FireBorderBrush,
-                    CornerRadius = new CornerRadius(6),
-                    Padding = new Thickness(12, 6, 12, 6),
-                    HorizontalAlignment = HorizontalAlignment.Right,
-                    VerticalAlignment = VerticalAlignment.Top,
-                    Margin = new Thickness(0, 10, 10, 0)
-                };
-                badge.Child = new Wpf.Ui.Controls.TextBlock
-                {
-                    Text = item.FireLabel,
-                    FontSize = 14,
-                    FontWeight = FontWeights.SemiBold,
-                    Foreground = Brushes.White
-                };
-                imgGrid.Children.Add(badge);
-            }
-
-            imgBorder.Child = imgGrid;
-            root.Children.Add(imgBorder);
-
-            // ── 타임스탬프 · 이미지 정보 ─────────────────────────
-            root.Children.Add(new Wpf.Ui.Controls.TextBlock
-            {
-                Text = $"{item.Timestamp}  ·  {item.ImageInfo}",
-                FontSize = 11,
-                Opacity = 0.5,
-                TextTrimming = TextTrimming.CharacterEllipsis,
-                Margin = new Thickness(0, 0, 0, 12)
-            });
-
-            // ── Result 배지 ──────────────────────────────────────
-            if (!string.IsNullOrEmpty(item.Result))
-            {
-                var resultBorder = new Border
-                {
-                    Background = (Brush)Application.Current.Resources["SystemAccentColorPrimaryBrush"],
-                    CornerRadius = new CornerRadius(6),
-                    Padding = new Thickness(14, 7, 14, 7),
-                    HorizontalAlignment = HorizontalAlignment.Left,
-                    Margin = new Thickness(0, 0, 0, 12)
-                };
-                resultBorder.Child = new Wpf.Ui.Controls.TextBlock
-                {
-                    Text = item.Result,
-                    FontSize = 14,
-                    FontWeight = FontWeights.Bold,
-                    Foreground = Brushes.White,
-                    TextWrapping = TextWrapping.Wrap
-                };
-                root.Children.Add(resultBorder);
-            }
-
-            // ── 이미지 설명 ──────────────────────────────────────
-            if (!string.IsNullOrEmpty(item.Description))
-            {
-                var descBorder = new Border
-                {
-                    Background = (Brush)Application.Current.Resources["ControlFillColorDefaultBrush"],
-                    CornerRadius = new CornerRadius(6),
-                    Padding = new Thickness(14, 10, 14, 10)
-                };
-
-                var descStack = new StackPanel();
-                descStack.Children.Add(new Wpf.Ui.Controls.TextBlock
-                {
-                    Text = "이미지 설명",
-                    FontSize = 11,
-                    FontWeight = FontWeights.SemiBold,
-                    Opacity = 0.6,
-                    Margin = new Thickness(0, 0, 0, 8)
-                });
-                descStack.Children.Add(new Wpf.Ui.Controls.TextBlock
-                {
-                    Text = item.Description,
-                    FontSize = 13,
-                    LineHeight = 22,
-                    TextWrapping = TextWrapping.Wrap
-                });
-
-                descBorder.Child = descStack;
-                root.Children.Add(descBorder);
-            }
-
-            return new ScrollViewer
-            {
-                Content = root,
-                MaxHeight = 620,
-                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-                HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled
-            };
-        }
-        private ContextMenu BuildImageContextMenu(AnalysisItem item)
-        {
-            var menu = new ContextMenu();
-
-            // ── 이미지 저장 ──────────────────────────────────────
-            var saveItem = new Wpf.Ui.Controls.MenuItem
-            {
-                Header = "이미지 저장...",
-                Icon = new SymbolIcon(SymbolRegular.ArrowDownload24)
-            };
-            saveItem.Click += (_, _) => SaveDialogImage(item);
-            menu.Items.Add(saveItem);
-
-            // ── 클립보드 복사 ────────────────────────────────────
-            var copyItem = new Wpf.Ui.Controls.MenuItem
-            {
-                Header = "클립보드에 복사",
-                Icon = new SymbolIcon(SymbolRegular.Copy24)
-            };
-            copyItem.Click += (_, _) =>
-            {
-                if (item.Image is not null)
-                {
-                    Clipboard.SetImage(item.Image);
-                    _snackbarService.Show(
-                        "복사 완료",
-                        "이미지가 클립보드에 복사되었습니다.",
-                        ControlAppearance.Success,
-                        new SymbolIcon(SymbolRegular.Checkmark24),
-                        TimeSpan.FromSeconds(2));
-                }
-            };
-            menu.Items.Add(copyItem);
-
-            return menu;
-        }
-
-        private void SaveDialogImage(AnalysisItem item)
-        {
-            if (item.Image is null) return;
-
-            // 기본 파일명: 이벤트타입_타임스탬프 형식
-            var defaultName = string.IsNullOrWhiteSpace(item.ImageInfo)
-                ? $"Image_{DateTime.Now:yyyyMMdd_HHmmss}"
-                : $"{SanitizeFileName(item.ImageInfo.Split('·')[0].Trim())}_{DateTime.Now:yyyyMMdd_HHmmss}";
-
-            var dialog = new SaveFileDialog
-            {
-                Title = "이미지 저장",
-                Filter = "JPEG (*.jpg)|*.jpg|PNG (*.png)|*.png|BMP (*.bmp)|*.bmp|모든 파일 (*.*)|*.*",
-                FilterIndex = 1,
-                FileName = defaultName,
-                DefaultExt = "jpg"
-            };
-
-            if (dialog.ShowDialog() != true) return;
-
-            try
-            {
-                var ext = Path.GetExtension(dialog.FileName).ToLowerInvariant();
-
-                BitmapEncoder encoder = ext switch
-                {
-                    ".png" => new PngBitmapEncoder(),
-                    ".bmp" => new BmpBitmapEncoder(),
-                    _ => new JpegBitmapEncoder { QualityLevel = 95 }
-                };
-
-                encoder.Frames.Add(BitmapFrame.Create(item.Image));
-
-                using var fs = new FileStream(dialog.FileName, FileMode.Create);
-                encoder.Save(fs);
-
-                _snackbarService.Show(
-                    "저장 완료",
-                    $"{Path.GetFileName(dialog.FileName)}",
-                    ControlAppearance.Success,
-                    new SymbolIcon(SymbolRegular.Checkmark24),
-                    TimeSpan.FromSeconds(3));
-            }
-            catch (Exception ex)
-            {
-                _snackbarService.Show(
-                    "저장 실패",
-                    ex.Message,
-                    ControlAppearance.Danger,
-                    new SymbolIcon(SymbolRegular.ErrorCircle24),
-                    TimeSpan.FromSeconds(3));
-            }
-        }
-
-        // 파일명에 사용 불가한 문자 제거
-        private static string SanitizeFileName(string name)
-        {
-            var invalid = Path.GetInvalidFileNameChars();
-            return string.Concat(name.Select(c => invalid.Contains(c) ? '_' : c)).Trim();
         }
 
         // ═══════════════════════════════════════════════════════════

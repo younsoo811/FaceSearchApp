@@ -446,21 +446,10 @@
                                 </Style>
                             </StackPanel.Style>
 
-                            <ItemsControl ItemsSource="{Binding EventTypes}">
-                                <ItemsControl.ItemsPanel>
-                                    <ItemsPanelTemplate>
-                                        <StackPanel Orientation="Horizontal" />
-                                    </ItemsPanelTemplate>
-                                </ItemsControl.ItemsPanel>
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <ui:ToggleSwitch
-                                            Margin="0,0,12,0"
-                                            Content="{Binding Display}"
-                                            IsChecked="{Binding IsLiveEnabled, Mode=TwoWay}" />
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
+                            <ui:Button
+                                Command="{Binding ConfigureEventTypesCommand}"
+                                Content="타입 설정"
+                                Icon="{ui:SymbolIcon Settings24}" />
                         </StackPanel>
 
                     </StackPanel>
