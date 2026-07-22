@@ -445,13 +445,12 @@
                                     </Style.Triggers>
                                 </Style>
                             </StackPanel.Style>
-
-                            <ui:Button
+                        </StackPanel>
+                        
+                        <ui:Button
                                 Command="{Binding ConfigureEventTypesCommand}"
                                 Content="타입 설정"
                                 Icon="{ui:SymbolIcon Settings24}" />
-                        </StackPanel>
-
                     </StackPanel>
                 </Border>
 
