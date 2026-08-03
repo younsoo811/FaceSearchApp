@@ -11,6 +11,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Data;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -861,6 +862,7 @@ namespace FaceSearchApp.ViewModels
                         targetItem.Description = response.Desc ?? string.Empty;
                         targetItem.Result = response.Result ?? string.Empty;
                         targetItem.Decision = response.Decision ?? string.Empty;
+                        targetItem.SetConfidenceScore(ParseVlmConfidence(response.Confidence));
                         targetItem.IsAnalyzing = false;
                         CancelResponseTimeout();
 
@@ -1044,6 +1046,32 @@ namespace FaceSearchApp.ViewModels
 
             var prefix = _eventTopic[..wildcardIndex];
             return topic.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static double? ParseVlmConfidence(JsonElement confidence)
+        {
+            double value;
+
+            switch (confidence.ValueKind)
+            {
+                case JsonValueKind.Number when confidence.TryGetDouble(out value):
+                    break;
+                case JsonValueKind.String:
+                    var text = confidence.GetString();
+                    if (!double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out value) &&
+                        !double.TryParse(text, NumberStyles.Float, CultureInfo.CurrentCulture, out value))
+                    {
+                        return null;
+                    }
+                    break;
+                default:
+                    return null;
+            }
+
+            if (double.IsNaN(value) || double.IsInfinity(value))
+                return null;
+
+            return value > 1 ? value / 100 : value;
         }
 
         private EventTypeItem? FindConfiguredEventType(string eventType)

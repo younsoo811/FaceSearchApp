@@ -575,9 +575,16 @@
 
                                             <!--  결과  -->
                                             <StackPanel Visibility="{Binding IsAnalyzing, Converter={StaticResource InvBoolToVis}}">
-                                                <StackPanel Margin="0 0 0 10" Orientation="Horizontal">
+                                                <Grid Margin="0 0 0 10">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto" />
+                                                        <ColumnDefinition Width="16" />
+                                                        <ColumnDefinition Width="220" />
+                                                    </Grid.ColumnDefinitions>
+
                                                     <!--  Result  -->
                                                     <Border
+                                                        Grid.Column="0"
                                                         Padding="10,5"
                                                         HorizontalAlignment="Left"
                                                         Background="{DynamicResource SystemAccentColorPrimaryBrush}"
@@ -589,7 +596,51 @@
                                                             Foreground="White"
                                                             Text="{Binding Result}" TextWrapping="Wrap"/>
                                                     </Border>
-                                                </StackPanel>
+
+                                                    <Border
+                                                        Grid.Column="2"
+                                                        Padding="10,7"
+                                                        Background="{DynamicResource ControlFillColorDefaultBrush}"
+                                                        BorderBrush="{Binding ConfidenceBrush}"
+                                                        BorderThickness="1"
+                                                        CornerRadius="6"
+                                                        Visibility="{Binding HasConfidence, Converter={StaticResource BoolToVis}}">
+                                                        <Grid>
+                                                            <Grid.RowDefinitions>
+                                                                <RowDefinition Height="Auto" />
+                                                                <RowDefinition Height="6" />
+                                                                <RowDefinition Height="8" />
+                                                            </Grid.RowDefinitions>
+
+                                                            <Grid>
+                                                                <Grid.ColumnDefinitions>
+                                                                    <ColumnDefinition Width="*" />
+                                                                    <ColumnDefinition Width="Auto" />
+                                                                </Grid.ColumnDefinitions>
+
+                                                                <TextBlock
+                                                                    FontSize="11"
+                                                                    FontWeight="SemiBold"
+                                                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                                                    Text="신뢰도" />
+                                                                <TextBlock
+                                                                    Grid.Column="1"
+                                                                    FontSize="16"
+                                                                    FontWeight="Bold"
+                                                                    Foreground="{Binding ConfidenceBrush}"
+                                                                    Text="{Binding ConfidenceDisplay}" />
+                                                            </Grid>
+
+                                                            <ProgressBar
+                                                                Grid.Row="2"
+                                                                Height="8"
+                                                                Maximum="100"
+                                                                Background="{Binding ConfidenceTrackBrush}"
+                                                                Foreground="{Binding ConfidenceBrush}"
+                                                                Value="{Binding AnimatedConfidencePercent}" />
+                                                        </Grid>
+                                                    </Border>
+                                                </Grid>
 
                                                 <!--  설명  -->
                                                 <Border

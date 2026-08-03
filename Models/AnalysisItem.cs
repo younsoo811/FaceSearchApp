@@ -15,6 +15,7 @@ namespace FaceSearchApp.Models
         public Guid Id { get; } = Guid.NewGuid();
 
         private DispatcherTimer? _typingTimer;
+        private DispatcherTimer? _confidenceTimer;
         private int _typingIndex;
 
         [ObservableProperty]
@@ -40,6 +41,15 @@ namespace FaceSearchApp.Models
         private string _decision = string.Empty;
 
         [ObservableProperty]
+        private bool _hasConfidence;
+
+        [ObservableProperty]
+        private double _confidencePercent;
+
+        [ObservableProperty]
+        private double _animatedConfidencePercent;
+
+        [ObservableProperty]
         private string _imageInfo = string.Empty;
 
         partial void OnDecisionChanged(string value)
@@ -49,10 +59,37 @@ namespace FaceSearchApp.Models
             OnPropertyChanged(nameof(FireBorderBrush));
         }
 
+        partial void OnConfidencePercentChanged(double value)
+        {
+            OnPropertyChanged(nameof(ConfidenceBrush));
+            OnPropertyChanged(nameof(ConfidenceTrackBrush));
+        }
+
+        partial void OnAnimatedConfidencePercentChanged(double value)
+        {
+            OnPropertyChanged(nameof(ConfidenceDisplay));
+        }
+
         // Description 값 변경 시 자동 타이핑 시작
         partial void OnDescriptionChanged(string value)
         {
             StartTypingAnimation(value);
+        }
+
+        public void SetConfidenceScore(double? score)
+        {
+            HasConfidence = score.HasValue;
+
+            if (!score.HasValue)
+            {
+                ConfidencePercent = 0;
+                AnimatedConfidencePercent = 0;
+                _confidenceTimer?.Stop();
+                return;
+            }
+
+            ConfidencePercent = Math.Clamp(score.Value, 0, 1) * 100;
+            StartConfidenceAnimation(ConfidencePercent);
         }
 
 
@@ -84,6 +121,68 @@ namespace FaceSearchApp.Models
             };
 
             _typingTimer.Start();
+        }
+
+        private void StartConfidenceAnimation(double targetPercent)
+        {
+            _confidenceTimer?.Stop();
+            AnimatedConfidencePercent = 0;
+
+            const int durationMs = 900;
+            const int intervalMs = 15;
+            var elapsedMs = 0;
+
+            _confidenceTimer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromMilliseconds(intervalMs)
+            };
+
+            _confidenceTimer.Tick += (s, e) =>
+            {
+                elapsedMs += intervalMs;
+                var progress = Math.Min(1, elapsedMs / (double)durationMs);
+                var eased = 1 - Math.Pow(1 - progress, 3);
+
+                AnimatedConfidencePercent = targetPercent * eased;
+
+                if (progress >= 1)
+                {
+                    AnimatedConfidencePercent = targetPercent;
+                    _confidenceTimer.Stop();
+                }
+            };
+
+            _confidenceTimer.Start();
+        }
+
+        public string ConfidenceDisplay => $"{AnimatedConfidencePercent:0}%";
+
+        public Brush ConfidenceBrush
+        {
+            get
+            {
+                var color = ConfidencePercent >= 80 ? Color.FromRgb(76, 175, 80)
+                          : ConfidencePercent >= 65 ? Color.FromRgb(255, 167, 38)
+                                                    : Color.FromRgb(239, 83, 80);
+
+                var brush = new SolidColorBrush(color);
+                brush.Freeze();
+                return brush;
+            }
+        }
+
+        public Brush ConfidenceTrackBrush
+        {
+            get
+            {
+                var color = ConfidencePercent >= 80 ? Color.FromRgb(232, 245, 233)
+                          : ConfidencePercent >= 65 ? Color.FromRgb(255, 243, 224)
+                                                    : Color.FromRgb(255, 235, 238);
+
+                var brush = new SolidColorBrush(color);
+                brush.Freeze();
+                return brush;
+            }
         }
 
         public string FireLabel => Decision switch
