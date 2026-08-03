@@ -66,8 +66,7 @@
             </TextBlock>
 
             <Border Margin="0,0,0,12"
-                    Padding="14,7"
-                    HorizontalAlignment="Left"
+                    Padding="14,10"
                     Background="{DynamicResource SystemAccentColorPrimaryBrush}"
                     CornerRadius="6">
                 <Border.Style>
@@ -80,11 +79,18 @@
                         </Style.Triggers>
                     </Style>
                 </Border.Style>
-                <TextBlock FontSize="14"
-                           FontWeight="Bold"
-                           Foreground="White"
-                           Text="{Binding Result}"
-                           TextWrapping="Wrap" />
+                <StackPanel>
+                    <TextBlock Margin="0,0,0,8"
+                               FontSize="12"
+                               FontWeight="SemiBold"
+                               Opacity="0.7"
+                               Text="{Binding ResultTitle}" />
+                    <TextBlock FontSize="14"
+                               FontWeight="Bold"
+                               Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                               Text="{Binding Result}"
+                               TextWrapping="Wrap" />
+                </StackPanel>
             </Border>
 
             <Border Margin="0,0,0,12"

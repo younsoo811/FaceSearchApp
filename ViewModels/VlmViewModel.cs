@@ -513,6 +513,7 @@ namespace FaceSearchApp.ViewModels
                 {
                     Image = QueryImage,
                     ImageInfo = ImageInfo,
+                    AnalysisTypeDisplay = SelectedEventType?.Display ?? SelectedEventType?.Key ?? string.Empty,
                     IsAnalyzing = true
                 };
 
@@ -586,6 +587,7 @@ namespace FaceSearchApp.ViewModels
                     {
                         Image = QueryImage,
                         ImageInfo = ImageInfo,
+                        AnalysisTypeDisplay = SelectedEventType?.Display ?? SelectedEventType?.Key ?? string.Empty,
                         IsAnalyzing = true
                     };
 
@@ -996,6 +998,7 @@ namespace FaceSearchApp.ViewModels
                         {
                             Image = image,
                             ImageInfo = $"{eventType} · {classType} · {image.PixelWidth}×{image.PixelHeight}",
+                            AnalysisTypeDisplay = configuredEventType.Display,
                             IsAnalyzing = true
                         };
 

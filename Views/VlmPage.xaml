@@ -585,16 +585,25 @@
                                                     <!--  Result  -->
                                                     <Border
                                                         Grid.Column="0"
-                                                        Padding="10,5"
-                                                        HorizontalAlignment="Left"
+                                                        Padding="10,8"
+                                                        HorizontalAlignment="Stretch"
                                                         Background="{DynamicResource SystemAccentColorPrimaryBrush}"
                                                         CornerRadius="6">
-                                                        <TextBlock
-                                                            FontSize="12"
-                                                            FontWeight="Bold"
-                                                            LineHeight="20"
-                                                            Foreground="White"
-                                                            Text="{Binding Result}" TextWrapping="Wrap"/>
+                                                        <StackPanel>
+                                                            <TextBlock
+                                                                Margin="0 0 0 7"
+                                                                FontSize="11"
+                                                                FontWeight="SemiBold"
+                                                                Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                                                Text="{Binding ResultTitle}" />
+                                                            <TextBlock
+                                                                FontSize="12"
+                                                                FontWeight="Bold"
+                                                                LineHeight="20"
+                                                                Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                                                Text="{Binding Result}"
+                                                                TextWrapping="Wrap" />
+                                                        </StackPanel>
                                                     </Border>
 
                                                     <Border

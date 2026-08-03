@@ -38,6 +38,9 @@ namespace FaceSearchApp.Models
         private string _result = string.Empty;
 
         [ObservableProperty]
+        private string _analysisTypeDisplay = string.Empty;
+
+        [ObservableProperty]
         private string _decision = string.Empty;
 
         [ObservableProperty]
@@ -68,6 +71,11 @@ namespace FaceSearchApp.Models
         partial void OnAnimatedConfidencePercentChanged(double value)
         {
             OnPropertyChanged(nameof(ConfidenceDisplay));
+        }
+
+        partial void OnAnalysisTypeDisplayChanged(string value)
+        {
+            OnPropertyChanged(nameof(ResultTitle));
         }
 
         // Description 값 변경 시 자동 타이핑 시작
@@ -156,6 +164,10 @@ namespace FaceSearchApp.Models
         }
 
         public string ConfidenceDisplay => $"{AnimatedConfidencePercent:0}%";
+
+        public string ResultTitle => string.IsNullOrWhiteSpace(AnalysisTypeDisplay)
+            ? "분석 결과"
+            : $"{AnalysisTypeDisplay} 분석 결과";
 
         public Brush ConfidenceBrush
         {
