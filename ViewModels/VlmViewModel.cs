@@ -62,6 +62,8 @@ namespace FaceSearchApp.ViewModels
         [ObservableProperty] private string _connectionStatus = "연결되지 않음";
         [ObservableProperty] private string _connectButtonText = "연결";
 
+        private int _delayTime = 5000; // 기본 5초
+
         // ── 이미지 선택 ────────────────────────────────────────────
         [ObservableProperty] private BitmapImage? _queryImage;
         [ObservableProperty] private string _imageInfo = string.Empty;
@@ -212,6 +214,8 @@ namespace FaceSearchApp.ViewModels
                     SkipNoResponseTimeoutSeconds = timeoutValue;
                 }
 
+                _delayTime = vlm.GetProperty("DelayTime").GetInt32();
+
                 LoadEventTypes(vlm);
             }
             catch
@@ -316,6 +320,8 @@ namespace FaceSearchApp.ViewModels
                     ["UseCredentials"] = UseCredentials,
 
                     ["SkipNoResponseTimeoutSeconds"] = SkipNoResponseTimeoutSeconds,
+
+                    ["DelayTime"] = _delayTime,
 
                     ["EventTypes"] = new JsonArray(
                         EventTypes.Select(x => new JsonObject
@@ -879,7 +885,7 @@ namespace FaceSearchApp.ViewModels
 
                                 Task.Run(async () =>
                                 {
-                                    await Task.Delay(5000);
+                                    await Task.Delay(_delayTime);
 
                                     Application.Current.Dispatcher.Invoke(() =>
                                     {
