@@ -104,12 +104,7 @@ namespace FaceSearchApp.ViewModels
                     return;
                 }
 
-                // Fetch images for all hits in one call
-                var imageIds = hits.Select(h => h.ImageId).ToList();
-                var imgResp = await _api.GetImagesAsync(imageIds, ct);
-                var imageMap = imgResp?.Data?.Images
-                                     .ToDictionary(i => i.Id, i => i.Base64)
-                                 ?? new Dictionary<string, string>();
+                var imageMap = await GetImagesSkippingInvalidIdsAsync(hits, ct);
 
                 foreach (var hit in hits)
                 {
@@ -128,7 +123,10 @@ namespace FaceSearchApp.ViewModels
 
                 HasResults = true;
                 ResultHeader = $"검색 결과 ({Results.Count}건)";
-                StatusMessage = $"✅ {Results.Count}개의 유사 얼굴을 찾았습니다.";
+                var missingImageCount = Results.Count(r => r.Image is null);
+                StatusMessage = missingImageCount > 0
+                    ? $"✅ {Results.Count}개의 유사 얼굴을 찾았습니다. 이미지 {missingImageCount}건은 불러오지 못했습니다."
+                    : $"✅ {Results.Count}개의 유사 얼굴을 찾았습니다.";
             }
             catch (OperationCanceledException)
             {
@@ -164,6 +162,52 @@ namespace FaceSearchApp.ViewModels
         }
 
         // ── Helpers ───────────────────────────────────────────────────
+        private async Task<Dictionary<string, string>> GetImagesSkippingInvalidIdsAsync(
+            List<SearchResultItem> hits,
+            CancellationToken ct)
+        {
+            var imageMap = new Dictionary<string, string>();
+            var imageIds = hits.Select(h => h.ImageId)
+                               .Where(id => !string.IsNullOrWhiteSpace(id))
+                               .Distinct()
+                               .ToList();
+
+            if (imageIds.Count == 0)
+                return imageMap;
+
+            var imgResp = await _api.GetImagesAsync(imageIds, ct);
+            if (imgResp?.Success == true)
+            {
+                imageMap = imgResp.Data?.Images
+                            .GroupBy(i => i.Id)
+                            .ToDictionary(g => g.Key, g => g.First().Base64)
+                           ?? imageMap;
+                return imageMap;
+            }
+
+            if (!IsInvalidIdFormatError(imgResp?.Msg))
+                return imageMap;
+
+            foreach (var imageId in imageIds)
+            {
+                ct.ThrowIfCancellationRequested();
+
+                var singleResp = await _api.GetImagesAsync([imageId], ct);
+                if (singleResp?.Success == true)
+                {
+                    var image = singleResp.Data?.Images.FirstOrDefault(i => i.Id == imageId);
+                    if (image is not null)
+                        imageMap[image.Id] = image.Base64;
+                }
+            }
+
+            return imageMap;
+        }
+
+        private static bool IsInvalidIdFormatError(string? message)
+            => !string.IsNullOrWhiteSpace(message)
+               && message.Contains("유효하지 않은 ID 형식", StringComparison.OrdinalIgnoreCase);
+
         private static BitmapImage CreateBitmap(byte[] bytes)
         {
             var bmp = new BitmapImage();
