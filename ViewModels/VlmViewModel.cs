@@ -76,6 +76,7 @@ namespace FaceSearchApp.ViewModels
         private bool _isContinuousModeBackup;
 
         public ObservableCollection<EventTypeItem> EventTypes { get; } = new();
+        public ObservableCollection<EventTypeItem> RealtimeEventExcludeTypes { get; } = new();
 
         [ObservableProperty]
         private EventTypeItem? _selectedEventType;
@@ -91,6 +92,12 @@ namespace FaceSearchApp.ViewModels
 
         [ObservableProperty]
         private bool _isLiveEventMode = false;
+        [ObservableProperty]
+        private bool _showNegativeConfidenceRealtimeEvents;
+        [ObservableProperty]
+        private bool _useRealtimeAnalysisDelay = true;
+        [ObservableProperty]
+        private bool _skipRealtimeAnalysisWhenBusy = true;
 
         // ── 분석 상태 ──────────────────────────────────────────────
         [ObservableProperty] private bool _isAnalyzing;
@@ -99,6 +106,7 @@ namespace FaceSearchApp.ViewModels
         // ── 분석 히스토리 ──────────────────────────────────────────
         private readonly ObservableCollection<AnalysisItem> _allHistory = new();
         public ICollectionView AnalysisHistory { get; }
+        public ObservableCollection<RealtimeEventItem> RealtimeEvents { get; } = new();
 
         public VlmViewModel(ISnackbarService snackbarService, IContentDialogService dialogService)
         {
@@ -111,6 +119,7 @@ namespace FaceSearchApp.ViewModels
 
             LoadVlmSettings();
             EnsureDefaultEventTypes();
+            EnsureDefaultRealtimeEventExcludeTypes();
             _selectedEventType = EventTypes.FirstOrDefault();
             _selectedLabelType = LabelTypes.FirstOrDefault();
 
@@ -120,6 +129,8 @@ namespace FaceSearchApp.ViewModels
         private bool FilterItem(object obj)
         {
             if (obj is not AnalysisItem item) return false;
+
+            if (item.IsRealtimeSelected) return true;
 
             // 분석 중인 항목은 필터 무관하게 항상 표시
             if (item.IsAnalyzing) return true;
@@ -214,9 +225,29 @@ namespace FaceSearchApp.ViewModels
                     SkipNoResponseTimeoutSeconds = timeoutValue;
                 }
 
-                _delayTime = vlm.GetProperty("DelayTime").GetInt32();
+                if (vlm.TryGetProperty("ShowNegativeConfidenceRealtimeEvents", out var negativeConfidenceProp))
+                {
+                    ShowNegativeConfidenceRealtimeEvents = negativeConfidenceProp.ValueKind == JsonValueKind.True;
+                }
+
+                if (vlm.TryGetProperty("UseRealtimeAnalysisDelay", out var useDelayProp))
+                {
+                    UseRealtimeAnalysisDelay = useDelayProp.ValueKind != JsonValueKind.False;
+                }
+
+                if (vlm.TryGetProperty("SkipRealtimeAnalysisWhenBusy", out var skipBusyProp))
+                {
+                    SkipRealtimeAnalysisWhenBusy = skipBusyProp.ValueKind != JsonValueKind.False;
+                }
+
+                if (vlm.TryGetProperty("DelayTime", out var delayProp) &&
+                    delayProp.TryGetInt32(out var delayValue) && delayValue >= 0)
+                {
+                    _delayTime = delayValue;
+                }
 
                 LoadEventTypes(vlm);
+                LoadRealtimeEventExcludeTypes(vlm);
             }
             catch
             {
@@ -289,6 +320,54 @@ namespace FaceSearchApp.ViewModels
             EventTypes.Add(new EventTypeItem { Key = "ElectricalWork", Display = "전기작업" });
         }
 
+        private void LoadRealtimeEventExcludeTypes(JsonElement vlm)
+        {
+            if (!vlm.TryGetProperty("RealtimeEventExcludeTypes", out var eventTypesProp) ||
+                eventTypesProp.ValueKind != JsonValueKind.Array)
+            {
+                return;
+            }
+
+            var items = new List<EventTypeItem>();
+
+            foreach (var item in eventTypesProp.EnumerateArray())
+            {
+                EventTypeItem? eventType = item.ValueKind switch
+                {
+                    JsonValueKind.String => CreateEventTypeItem(item.GetString(), null, true),
+                    JsonValueKind.Object => CreateEventTypeItem(
+                        item.TryGetProperty("Key", out var keyProp) ? keyProp.GetString() : null,
+                        item.TryGetProperty("Display", out var displayProp) ? displayProp.GetString() : null,
+                        true),
+                    _ => null
+                };
+
+                if (eventType is null ||
+                    items.Any(x => x.Key.Equals(eventType.Key, StringComparison.OrdinalIgnoreCase)))
+                {
+                    continue;
+                }
+
+                items.Add(eventType);
+            }
+
+            if (items.Count == 0)
+                return;
+
+            RealtimeEventExcludeTypes.Clear();
+            foreach (var item in items)
+                RealtimeEventExcludeTypes.Add(item);
+        }
+
+        private void EnsureDefaultRealtimeEventExcludeTypes()
+        {
+            if (RealtimeEventExcludeTypes.Count > 0)
+                return;
+
+            RealtimeEventExcludeTypes.Add(new EventTypeItem { Key = "Detect", Display = "Detect" });
+            RealtimeEventExcludeTypes.Add(new EventTypeItem { Key = "PersonTrack", Display = "PersonTrack" });
+        }
+
         private void SaveVlmSettings()
         {
             try
@@ -320,6 +399,9 @@ namespace FaceSearchApp.ViewModels
                     ["UseCredentials"] = UseCredentials,
 
                     ["SkipNoResponseTimeoutSeconds"] = SkipNoResponseTimeoutSeconds,
+                    ["ShowNegativeConfidenceRealtimeEvents"] = ShowNegativeConfidenceRealtimeEvents,
+                    ["UseRealtimeAnalysisDelay"] = UseRealtimeAnalysisDelay,
+                    ["SkipRealtimeAnalysisWhenBusy"] = SkipRealtimeAnalysisWhenBusy,
 
                     ["DelayTime"] = _delayTime,
 
@@ -329,6 +411,13 @@ namespace FaceSearchApp.ViewModels
                             ["Key"] = x.Key,
                             ["Display"] = x.Display,
                             ["IsLiveEnabled"] = x.IsLiveEnabled
+                        }).ToArray<JsonNode?>()),
+
+                    ["RealtimeEventExcludeTypes"] = new JsonArray(
+                        RealtimeEventExcludeTypes.Select(x => new JsonObject
+                        {
+                            ["Key"] = x.Key,
+                            ["Display"] = x.Display
                         }).ToArray<JsonNode?>())
                 };
 
@@ -584,7 +673,8 @@ namespace FaceSearchApp.ViewModels
                 var bytes = await File.ReadAllBytesAsync(_selectedImagePath);
                 var base64 = Convert.ToBase64String(bytes);
 
-                StatusMessage = "10초 간격 자동 전송 시작";
+                var timeoutSeconds = Math.Max(1, SkipNoResponseTimeoutSeconds);
+                StatusMessage = $"{timeoutSeconds}초 간격 자동 전송 시작";
 
                 while (!token.IsCancellationRequested)
                 {
@@ -616,8 +706,8 @@ namespace FaceSearchApp.ViewModels
 
                     StatusMessage = $"분석 요청 전송 완료 ({DateTime.Now:HH:mm:ss})";
 
-                    // 10초 대기
-                    await Task.Delay(TimeSpan.FromSeconds(10), token);
+                    // n초 대기
+                    await Task.Delay(TimeSpan.FromSeconds(timeoutSeconds), token);
                 }
             }
             catch (TaskCanceledException)
@@ -718,12 +808,85 @@ namespace FaceSearchApp.ViewModels
         //private bool CanCancelAnalysis() => IsAnalyzing;
         private bool CanCancelAnalysis() => true;
 
+        [RelayCommand(CanExecute = nameof(CanCancelAnalysisItem))]
+        private void CancelAnalysisItem(AnalysisItem? item)
+        {
+            if (item is null || !item.IsAnalyzing)
+                return;
+
+            if (_currentAnalysisId == item.Id)
+            {
+                CancelResponseTimeout();
+                IsAnalyzing = false;
+                _currentAnalysisId = null;
+                _isRealtimeCooldown = false;
+            }
+
+            var realtimeItem = RealtimeEvents.FirstOrDefault(x => x.AnalysisItem?.Id == item.Id);
+            if (realtimeItem is not null)
+            {
+                realtimeItem.IsAnalyzing = false;
+                realtimeItem.IsAnalysisCompleted = false;
+                realtimeItem.AnalysisItem = null;
+            }
+
+            _allHistory.Remove(item);
+            AnalysisHistory.Refresh();
+
+            StatusMessage = "분석 요청이 취소되었습니다.";
+            AnalyzeCommand.NotifyCanExecuteChanged();
+            CancelAnalysisCommand.NotifyCanExecuteChanged();
+            CancelAnalysisItemCommand.NotifyCanExecuteChanged();
+
+            _snackbarService.Show(
+                "분석 요청 취소",
+                "선택한 분석 요청이 취소되었습니다.",
+                ControlAppearance.Info,
+                new SymbolIcon(SymbolRegular.Checkmark24),
+                TimeSpan.FromSeconds(3));
+        }
+
+        private bool CanCancelAnalysisItem(AnalysisItem? item)
+            => item?.IsAnalyzing == true;
+
         [RelayCommand]
         private void ClearHistory()
         {
             CancelAnalysis();
             _allHistory.Clear();
+            RealtimeEvents.Clear();
             StatusMessage = "분석 기록이 초기화되었습니다.";
+        }
+
+        public AnalysisItem? SelectRealtimeEvent(RealtimeEventItem item)
+        {
+            foreach (var historyItem in _allHistory)
+                historyItem.IsRealtimeSelected = false;
+
+            if (item.IsSelected)
+            {
+                item.IsSelected = false;
+
+                AnalysisHistory.Refresh();
+                return null;
+            }
+
+            foreach (var eventItem in RealtimeEvents)
+                eventItem.IsSelected = false;
+
+            item.IsSelected = true;
+
+            var analysisItem = item.AnalysisItem;
+            if (analysisItem is null)
+            {
+                AnalysisHistory.Refresh();
+                return null;
+            }
+
+            analysisItem.IsRealtimeSelected = true;
+
+            AnalysisHistory.Refresh();
+            return analysisItem;
         }
 
         // ═══════════════════════════════════════════════════════════
@@ -794,6 +957,13 @@ namespace FaceSearchApp.ViewModels
                         if (item is null) return;
 
                         _allHistory.Remove(item);
+                        var realtimeItem = RealtimeEvents.FirstOrDefault(x => x.AnalysisItem?.Id == itemId);
+                        if (realtimeItem is not null)
+                        {
+                            realtimeItem.IsAnalyzing = false;
+                            realtimeItem.IsAnalysisCompleted = false;
+                        }
+
                         IsAnalyzing = false;
                         _currentAnalysisId = null;
                         StatusMessage = "응답 시간 초과 - 요청이 자동 삭제되었습니다.";
@@ -842,8 +1012,10 @@ namespace FaceSearchApp.ViewModels
                         AnalysisItem? targetItem = null;
 
                         // 응답에 id가 있으면 매칭 시도
+                        var hasResponseId = false;
                         if (!string.IsNullOrEmpty(response.Id) && Guid.TryParse(response.Id, out var guid))
                         {
+                            hasResponseId = true;
                             targetItem = _allHistory.FirstOrDefault(x => x.Id == guid);
                         }
                         //if (payload.Contains("\"id\""))
@@ -857,8 +1029,9 @@ namespace FaceSearchApp.ViewModels
                         //    }
                         //}
 
-                        // ID 매칭 실패 시 현재 분석 중인 항목 찾기
-                        targetItem ??= _allHistory.FirstOrDefault(x => x.IsAnalyzing);
+                        // ID가 있는 응답은 해당 ID가 없으면 취소/삭제된 요청으로 보고 무시
+                        if (!hasResponseId)
+                            targetItem ??= _allHistory.FirstOrDefault(x => x.IsAnalyzing);
 
                         if (targetItem is null)
                         {
@@ -872,15 +1045,24 @@ namespace FaceSearchApp.ViewModels
                         targetItem.Decision = response.Decision ?? string.Empty;
                         targetItem.SetConfidenceScore(ParseVlmConfidence(response.Confidence));
                         targetItem.IsAnalyzing = false;
+
+                        var realtimeItem = RealtimeEvents.FirstOrDefault(x => x.AnalysisItem?.Id == targetItem.Id);
+                        if (realtimeItem is not null)
+                        {
+                            realtimeItem.Decision = targetItem.Decision;
+                            realtimeItem.IsAnalyzing = false;
+                            realtimeItem.IsAnalysisCompleted = true;
+                        }
+
                         CancelResponseTimeout();
 
                         AnalysisHistory.Refresh();
 
                         if (!_isContinuousModeBackup)
                         {
-                            if (IsLiveEventMode)
+                            if (IsLiveEventMode && UseRealtimeAnalysisDelay && _delayTime > 0)
                             {
-                                // 실시간 이벤트 모드에서는 분석 완료 후 5초간 추가 이벤트 수신 대기 (쿨다운)
+                                // 실시간 이벤트 모드에서는 설정된 시간 동안 추가 분석 요청을 지연
                                 _isRealtimeCooldown = true;
 
                                 Task.Run(async () =>
@@ -889,7 +1071,7 @@ namespace FaceSearchApp.ViewModels
 
                                     Application.Current.Dispatcher.Invoke(() =>
                                     {
-                                        IsAnalyzing = false;
+                                        IsAnalyzing = _allHistory.Any(x => x.IsAnalyzing);
                                         _isRealtimeCooldown = false;
 
                                         if (IsLiveEventMode)
@@ -899,7 +1081,7 @@ namespace FaceSearchApp.ViewModels
                             }
                             else
                             {
-                                IsAnalyzing = false;
+                                IsAnalyzing = _allHistory.Any(x => x.IsAnalyzing);
                             }
                         }
                         _currentAnalysisId = null;
@@ -919,10 +1101,6 @@ namespace FaceSearchApp.ViewModels
             }
             else if (IsEventTopic(topic) && IsLiveEventMode)
             {
-                // 분석 중에는 실시간 이벤트 무시
-                if (IsAnalyzing || _isRealtimeCooldown)
-                    return;
-
                 Application.Current.Dispatcher.Invoke(async () =>
                 {
                     try
@@ -943,70 +1121,89 @@ namespace FaceSearchApp.ViewModels
                         var eventItem = response.EventItem;
                         var eventType = eventItem.EventType ?? "Unknown";
                         var classType = eventItem.ClassType ?? "Unknown";
-                        var imageBase64 = eventItem.ImageInfo.FullFrameBase64Data;
+
+                        if (!ShowNegativeConfidenceRealtimeEvents && HasNegativeConfidence(eventItem))
+                        {
+                            StatusMessage = $"실시간 이벤트 제외 (음수 Confidence): {eventType} ({classType})";
+                            return;
+                        }
+
+                        if (IsRealtimeEventExcluded(eventType))
+                        {
+                            StatusMessage = $"실시간 이벤트 제외: {eventType} ({classType})";
+                            return;
+                        }
+
+                        var imageBase64 = !string.IsNullOrWhiteSpace(eventItem.ImageInfo.FullFrameBase64Data)
+                            ? eventItem.ImageInfo.FullFrameBase64Data
+                            : eventItem.ImageInfo.Base64Data;
 
                         var configuredEventType = FindConfiguredEventType(eventType);
-                        if (configuredEventType is null || string.IsNullOrEmpty(imageBase64))
+                        var isAnalysisTarget = configuredEventType is not null && configuredEventType.IsLiveEnabled;
+                        var analysisEventType = configuredEventType?.Key ?? eventType;
+                        var analysisTypeDisplay = configuredEventType?.Display ?? eventType;
+                        var confidences = BuildRealtimeConfidences(eventItem);
+                        var bbox = BuildRealtimeBoundingBoxes(eventItem);
+                        RemoveNegativeRealtimeConfidence(confidences, bbox);
+
+                        BitmapImage? image = null;
+                        if (!string.IsNullOrWhiteSpace(imageBase64))
+                            image = Base64ToBitmapImage(imageBase64);
+
+                        var realtimeItem = new RealtimeEventItem
+                        {
+                            Image = image,
+                            EventType = eventType,
+                            AnalysisEventType = analysisEventType,
+                            EventTypeDisplay = configuredEventType?.Display ?? eventType,
+                            AnalysisTypeDisplay = analysisTypeDisplay,
+                            ClassType = classType,
+                            ImageBase64 = imageBase64,
+                            Confidences = new Dictionary<string, double>(confidences),
+                            BoundingBoxes = CloneBoundingBoxes(bbox),
+                            Timestamp = GetRealtimeEventTimestamp(response, eventItem),
+                            IsAnalysisTarget = isAnalysisTarget
+                        };
+
+                        if (RealtimeEvents.Count >= 200)
+                            RealtimeEvents.RemoveAt(RealtimeEvents.Count - 1);
+
+                        RealtimeEvents.Insert(0, realtimeItem);
+
+                        if (!isAnalysisTarget || string.IsNullOrEmpty(imageBase64))
                         {
                             StatusMessage = $"실시간 이벤트 수신 (분석 생략): {eventType} ({classType})";
                             return;
                         }
 
-                        eventType = configuredEventType.Key;
-                        if (!configuredEventType.IsLiveEnabled)
+                        eventType = configuredEventType!.Key;
+
+                        if (SkipRealtimeAnalysisWhenBusy && (IsAnalyzing || _isRealtimeCooldown))
+                        {
+                            StatusMessage = $"실시간 이벤트 수신 (분석 대기): {eventType} ({classType})";
+                            realtimeItem.IsAnalysisTarget = false; // 분석 대상이지만 현재 분석 중이므로 분석 제외로 표시
                             return;
-
-                        var confidences = eventItem.Confidences;
-                        if (confidences.Count == 0 && eventItem.Confidence.Count > 0)
-                        {
-                            confidences = eventItem.Confidence.ToDictionary(
-                                _ => eventItem.ObjectId.ToString(),
-                                x => x);
-                        }
-
-                        var bbox = eventItem.BoundingBoxs;
-                        if (bbox.Count == 0)
-                        {
-                            bbox = new Dictionary<string, List<double>>
-                            {
-                                [eventItem.ObjectId.ToString()] = new()
-                                {
-                                    eventItem.BoundingBox.X,
-                                    eventItem.BoundingBox.Y,
-                                    eventItem.BoundingBox.Width,
-                                    eventItem.BoundingBox.Height
-                                }
-                            };
-                        }
-
-                        // 음수 Confidence 제거
-                        var invalidKeys = confidences
-                            .Where(x => x.Value < 0)
-                            .Select(x => x.Key)
-                            .ToList();
-
-                        foreach (var key in invalidKeys)
-                        {
-                            confidences.Remove(key);
-                            bbox.Remove(key);
                         }
 
                         if (confidences.Count == 0)
                         {
                             StatusMessage = "Confidence 오류: 데이터 없음";
+                            realtimeItem.IsAnalysisTarget = false; // 분석 대상이지만 Confidence 데이터가 없으므로 분석 제외로 표시
+                            realtimeItem.IsAnalyzing = false;
                             return;
                         }
-
-                        // 새 분석 아이템 생성
-                        BitmapImage image = Base64ToBitmapImage(imageBase64);
 
                         var item = new AnalysisItem
                         {
                             Image = image,
-                            ImageInfo = $"{eventType} · {classType} · {image.PixelWidth}×{image.PixelHeight}",
-                            AnalysisTypeDisplay = configuredEventType.Display,
+                            ImageInfo = image is null
+                                ? $"{eventType} · {classType}"
+                                : $"{eventType} · {classType} · {image.PixelWidth}×{image.PixelHeight}",
+                            AnalysisTypeDisplay = analysisTypeDisplay,
                             IsAnalyzing = true
                         };
+                        realtimeItem.AnalysisItem = item;
+                        realtimeItem.IsAnalyzing = true;
 
                         if (_allHistory.Count >= 100)
                             _allHistory.RemoveAt(_allHistory.Count - 1);
@@ -1018,7 +1215,7 @@ namespace FaceSearchApp.ViewModels
 
                         var request = JsonSerializer.Serialize(new
                         {
-                            id = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString(),
+                            id = item.Id.ToString(),
                             eventType = eventType,
                             classType = classType,
                             boundingBox = bbox,
@@ -1038,6 +1235,11 @@ namespace FaceSearchApp.ViewModels
                     catch (JsonException ex)
                     {
                         StatusMessage = $"JSON 파싱 오류: {ex.Message}";
+                        return;
+                    }
+                    catch (Exception ex)
+                    {
+                        StatusMessage = $"실시간 이벤트 처리 오류: {ex.Message}";
                         return;
                     }
                 });
@@ -1083,6 +1285,21 @@ namespace FaceSearchApp.ViewModels
             return value > 1 ? value / 100 : value;
         }
 
+        private static string GetRealtimeEventTimestamp(MqttEventDataModel response, EventItemModel eventItem)
+        {
+            var rawTimestamp = !string.IsNullOrWhiteSpace(eventItem.ImageInfo.Timestamp)
+                ? eventItem.ImageInfo.Timestamp
+                : response.CreateTime;
+
+            if (DateTime.TryParse(rawTimestamp, CultureInfo.CurrentCulture, DateTimeStyles.AssumeLocal, out var parsed) ||
+                DateTime.TryParse(rawTimestamp, CultureInfo.InvariantCulture, DateTimeStyles.AssumeLocal, out parsed))
+            {
+                return parsed.ToString("yyyy-MM-dd HH:mm:ss");
+            }
+
+            return DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+        }
+
         private EventTypeItem? FindConfiguredEventType(string eventType)
         {
             if (string.IsNullOrWhiteSpace(eventType))
@@ -1091,6 +1308,141 @@ namespace FaceSearchApp.ViewModels
             return EventTypes.FirstOrDefault(x =>
                 eventType.Contains(x.Key, StringComparison.OrdinalIgnoreCase));
         }
+
+        private bool IsRealtimeEventExcluded(string eventType)
+        {
+            if (string.IsNullOrWhiteSpace(eventType))
+                return false;
+
+            return RealtimeEventExcludeTypes.Any(x =>
+                !string.IsNullOrWhiteSpace(x.Key) &&
+                eventType.Contains(x.Key, StringComparison.OrdinalIgnoreCase));
+        }
+
+        private static bool HasNegativeConfidence(EventItemModel eventItem)
+        {
+            return eventItem.Confidences.Any(x => x.Value < 0) ||
+                   eventItem.Confidence.Any(x => x < 0);
+        }
+
+        private static Dictionary<string, double> BuildRealtimeConfidences(EventItemModel eventItem)
+        {
+            if (eventItem.Confidences.Count > 0)
+                return new Dictionary<string, double>(eventItem.Confidences);
+
+            if (eventItem.Confidence.Count == 0)
+                return new Dictionary<string, double>();
+
+            return eventItem.Confidence.ToDictionary(
+                _ => eventItem.ObjectId.ToString(),
+                x => x);
+        }
+
+        private static Dictionary<string, List<double>> BuildRealtimeBoundingBoxes(EventItemModel eventItem)
+        {
+            if (eventItem.BoundingBoxs.Count > 0)
+                return CloneBoundingBoxes(eventItem.BoundingBoxs);
+
+            return new Dictionary<string, List<double>>
+            {
+                [eventItem.ObjectId.ToString()] = new()
+                {
+                    eventItem.BoundingBox.X,
+                    eventItem.BoundingBox.Y,
+                    eventItem.BoundingBox.Width,
+                    eventItem.BoundingBox.Height
+                }
+            };
+        }
+
+        private static void RemoveNegativeRealtimeConfidence(
+            Dictionary<string, double> confidences,
+            Dictionary<string, List<double>> boundingBoxes)
+        {
+            var invalidKeys = confidences
+                .Where(x => x.Value < 0)
+                .Select(x => x.Key)
+                .ToList();
+
+            foreach (var key in invalidKeys)
+            {
+                confidences.Remove(key);
+                boundingBoxes.Remove(key);
+            }
+        }
+
+        private static Dictionary<string, List<double>> CloneBoundingBoxes(
+            Dictionary<string, List<double>> source)
+            => source.ToDictionary(x => x.Key, x => x.Value.ToList());
+
+        [RelayCommand(CanExecute = nameof(CanAnalyzeRealtimeEvent))]
+        private async Task AnalyzeRealtimeEventAsync(RealtimeEventItem? realtimeItem)
+        {
+            if (realtimeItem is null || realtimeItem.IsAnalyzing ||
+                string.IsNullOrWhiteSpace(realtimeItem.ImageBase64))
+            {
+                return;
+            }
+
+            var connected = await EnsureConnectedAsync();
+            if (!connected)
+            {
+                StatusMessage = "수동 VLM 분석 실패 - 서버 연결 상태를 확인해주세요.";
+                return;
+            }
+
+            var item = new AnalysisItem
+            {
+                Image = realtimeItem.Image,
+                ImageInfo = realtimeItem.Image is null
+                    ? $"{realtimeItem.AnalysisEventType} · {realtimeItem.ClassType}"
+                    : $"{realtimeItem.AnalysisEventType} · {realtimeItem.ClassType} · {realtimeItem.Image.PixelWidth}×{realtimeItem.Image.PixelHeight}",
+                AnalysisTypeDisplay = string.IsNullOrWhiteSpace(realtimeItem.AnalysisTypeDisplay)
+                    ? realtimeItem.TypeDisplay
+                    : realtimeItem.AnalysisTypeDisplay,
+                IsAnalyzing = true
+            };
+
+            if (_allHistory.Count >= 100)
+                _allHistory.RemoveAt(_allHistory.Count - 1);
+
+            _allHistory.Insert(0, item);
+            realtimeItem.AnalysisItem = item;
+            realtimeItem.IsAnalysisTarget = true;
+            realtimeItem.IsAnalyzing = true;
+            realtimeItem.IsAnalysisCompleted = false;
+            realtimeItem.Decision = string.Empty;
+
+            _currentAnalysisId = item.Id;
+            IsAnalyzing = true;
+
+            var request = JsonSerializer.Serialize(new
+            {
+                id = item.Id.ToString(),
+                eventType = string.IsNullOrWhiteSpace(realtimeItem.AnalysisEventType)
+                    ? realtimeItem.EventType
+                    : realtimeItem.AnalysisEventType,
+                classType = realtimeItem.ClassType,
+                boundingBox = CloneBoundingBoxes(realtimeItem.BoundingBoxes),
+                @confidence = new Dictionary<string, double>(realtimeItem.Confidences),
+                @base64 = realtimeItem.ImageBase64
+            });
+
+            await _mqtt.PublishAsync(PubTopic, request);
+            StatusMessage = "수동 VLM 분석 진행 중...";
+
+            if (IsSkipNoResponse)
+                StartResponseTimeout(item.Id);
+
+            AnalyzeCommand.NotifyCanExecuteChanged();
+            CancelAnalysisCommand.NotifyCanExecuteChanged();
+            AnalyzeRealtimeEventCommand.NotifyCanExecuteChanged();
+        }
+
+        private bool CanAnalyzeRealtimeEvent(RealtimeEventItem? realtimeItem)
+            => realtimeItem is not null &&
+               !realtimeItem.IsAnalyzing &&
+               !string.IsNullOrWhiteSpace(realtimeItem.ImageBase64);
 
         [RelayCommand]
         private async Task ConfigureEventTypesAsync()
@@ -1194,6 +1546,25 @@ namespace FaceSearchApp.ViewModels
                 : $"중복된 Key가 있습니다: {duplicatedKey}";
         }
 
+        private static string? ValidateRealtimeEventExcludeTypes(IEnumerable<EventTypeItem> items)
+        {
+            var normalized = items
+                .Select(x => x.Key?.Trim() ?? string.Empty)
+                .ToList();
+
+            if (normalized.Any(string.IsNullOrWhiteSpace))
+                return "Key가 비어 있는 제외 타입이 있습니다.";
+
+            var duplicatedKey = normalized
+                .GroupBy(x => x, StringComparer.OrdinalIgnoreCase)
+                .FirstOrDefault(x => x.Count() > 1)
+                ?.Key;
+
+            return duplicatedKey is null
+                ? null
+                : $"중복된 Key가 있습니다: {duplicatedKey}";
+        }
+
         private static string GetEventTypesSignature(IEnumerable<EventTypeItem> items)
         {
             return string.Join(
@@ -1221,6 +1592,112 @@ namespace FaceSearchApp.ViewModels
             SelectedEventType = EventTypes.FirstOrDefault(x =>
                 x.Key.Equals(selectedKey, StringComparison.OrdinalIgnoreCase))
                 ?? EventTypes.FirstOrDefault();
+        }
+
+        [RelayCommand]
+        private async Task ConfigureRealtimeEventExcludeTypesAsync()
+        {
+            var draft = new ObservableCollection<EventTypeItem>(
+                RealtimeEventExcludeTypes.Select(CloneEventTypeItem));
+            var showNegativeConfidence = ShowNegativeConfidenceRealtimeEvents;
+            var delayTime = _delayTime;
+            var useRealtimeDelay = UseRealtimeAnalysisDelay;
+            var skipAnalysisWhenBusy = SkipRealtimeAnalysisWhenBusy;
+
+            while (true)
+            {
+                var content = new VlmRealtimeEventExcludeTypeSettingsDialog(
+                    draft,
+                    showNegativeConfidence,
+                    delayTime,
+                    useRealtimeDelay,
+                    skipAnalysisWhenBusy);
+                var dialog = new ContentDialog(_dialogService.GetContentPresenter())
+                {
+                    Title = "실시간 이벤트 제외 타입 설정",
+                    Content = content,
+                    PrimaryButtonText = "적용",
+                    CloseButtonText = "취소"
+                };
+
+                var result = await _dialogService.ShowAsync(dialog, CancellationToken.None);
+                if (result != ContentDialogResult.Primary)
+                    return;
+
+                content.CommitEdits();
+                var selectedShowNegativeConfidence = content.ShowNegativeConfidenceEvents;
+                var selectedDelayTime = content.DelayTimeMilliseconds;
+                var selectedUseRealtimeDelay = content.UseRealtimeAnalysisDelay;
+                var selectedSkipAnalysisWhenBusy = content.SkipRealtimeAnalysisWhenBusy;
+
+                var validationMessage = ValidateRealtimeEventExcludeTypes(draft);
+                if (!string.IsNullOrEmpty(validationMessage))
+                {
+                    showNegativeConfidence = selectedShowNegativeConfidence;
+                    delayTime = selectedDelayTime;
+                    useRealtimeDelay = selectedUseRealtimeDelay;
+                    skipAnalysisWhenBusy = selectedSkipAnalysisWhenBusy;
+                    _snackbarService.Show(
+                        "제외 타입 설정 오류",
+                        validationMessage,
+                        ControlAppearance.Danger,
+                        new SymbolIcon(SymbolRegular.ErrorCircle24),
+                        TimeSpan.FromSeconds(3));
+                    continue;
+                }
+
+                var originalSignature = GetEventTypesSignature(RealtimeEventExcludeTypes);
+                var draftSignature = GetEventTypesSignature(draft);
+                if (originalSignature == draftSignature)
+                {
+                    if (ShowNegativeConfidenceRealtimeEvents == selectedShowNegativeConfidence &&
+                        _delayTime == selectedDelayTime &&
+                        UseRealtimeAnalysisDelay == selectedUseRealtimeDelay &&
+                        SkipRealtimeAnalysisWhenBusy == selectedSkipAnalysisWhenBusy)
+                    {
+                        StatusMessage = "변경된 실시간 이벤트 제외 타입 설정이 없습니다.";
+                        return;
+                    }
+                }
+
+                RealtimeEventExcludeTypes.Clear();
+                foreach (var item in draft)
+                {
+                    RealtimeEventExcludeTypes.Add(new EventTypeItem
+                    {
+                        Key = item.Key.Trim(),
+                        Display = string.IsNullOrWhiteSpace(item.Display) ? item.Key.Trim() : item.Display.Trim(),
+                        IsLiveEnabled = true
+                    });
+                }
+                ShowNegativeConfidenceRealtimeEvents = selectedShowNegativeConfidence;
+                _delayTime = selectedDelayTime;
+                UseRealtimeAnalysisDelay = selectedUseRealtimeDelay;
+                SkipRealtimeAnalysisWhenBusy = selectedSkipAnalysisWhenBusy;
+
+                var saveResult = System.Windows.MessageBox.Show(
+                    "변경된 실시간 이벤트 제외 타입 설정을 저장할까요?",
+                    "실시간 이벤트 제외 타입 설정 저장",
+                    System.Windows.MessageBoxButton.YesNo,
+                    MessageBoxImage.Question);
+
+                if (saveResult == System.Windows.MessageBoxResult.Yes)
+                {
+                    SaveVlmSettings();
+                    _snackbarService.Show(
+                        "설정 저장 완료",
+                        "실시간 이벤트 제외 타입 설정이 저장되었습니다.",
+                        ControlAppearance.Success,
+                        new SymbolIcon(SymbolRegular.Checkmark24),
+                        TimeSpan.FromSeconds(3));
+                }
+                else
+                {
+                    StatusMessage = "실시간 이벤트 제외 타입 설정이 현재 실행 중인 화면에만 적용되었습니다.";
+                }
+
+                return;
+            }
         }
 
 
@@ -1280,10 +1757,9 @@ namespace FaceSearchApp.ViewModels
 
         private BitmapImage Base64ToBitmapImage(string base64)
         {
-            //// data:image/png;base64,... 형태 제거
-            //var commaIndex = base64.IndexOf(',');
-            //if (commaIndex >= 0)
-            //    base64 = base64[(commaIndex + 1)..];
+            var commaIndex = base64.IndexOf(',');
+            if (commaIndex >= 0)
+                base64 = base64[(commaIndex + 1)..];
 
             byte[] imageBytes = Convert.FromBase64String(base64);
 

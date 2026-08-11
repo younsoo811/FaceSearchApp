@@ -55,6 +55,9 @@ namespace FaceSearchApp.Models
         [ObservableProperty]
         private string _imageInfo = string.Empty;
 
+        [ObservableProperty]
+        private bool _isRealtimeSelected;
+
         partial void OnDecisionChanged(string value)
         {
             OnPropertyChanged(nameof(FireLabel));
@@ -226,6 +229,142 @@ namespace FaceSearchApp.Models
             "0" => new SolidColorBrush(Color.FromRgb(198, 40, 40)),
             "1" => new SolidColorBrush(Color.FromRgb(46, 125, 50)),
             _ => Brushes.Black
+        };
+    }
+
+    public partial class RealtimeEventItem : ObservableObject
+    {
+        public Guid Id { get; } = Guid.NewGuid();
+
+        [ObservableProperty]
+        private BitmapImage? _image;
+
+        [ObservableProperty]
+        private string _eventType = string.Empty;
+
+        [ObservableProperty]
+        private string _eventTypeDisplay = string.Empty;
+
+        [ObservableProperty]
+        private string _classType = string.Empty;
+
+        [ObservableProperty]
+        private string _imageBase64 = string.Empty;
+
+        [ObservableProperty]
+        private string _analysisEventType = string.Empty;
+
+        [ObservableProperty]
+        private string _analysisTypeDisplay = string.Empty;
+
+        public Dictionary<string, double> Confidences { get; set; } = new();
+
+        public Dictionary<string, List<double>> BoundingBoxes { get; set; } = new();
+
+        [ObservableProperty]
+        private string _timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+
+        [ObservableProperty]
+        private bool _isAnalysisTarget;
+
+        [ObservableProperty]
+        private bool _isAnalyzing;
+
+        [ObservableProperty]
+        private bool _isAnalysisCompleted;
+
+        [ObservableProperty]
+        private string _decision = string.Empty;
+
+        [ObservableProperty]
+        private AnalysisItem? _analysisItem;
+
+        [ObservableProperty]
+        private bool _isSelected;
+
+        partial void OnDecisionChanged(string value)
+        {
+            OnPropertyChanged(nameof(DecisionLabel));
+            OnPropertyChanged(nameof(DecisionBrush));
+            OnPropertyChanged(nameof(ShowDecision));
+        }
+
+        partial void OnEventTypeChanged(string value)
+        {
+            OnPropertyChanged(nameof(TypeDisplay));
+        }
+
+        partial void OnEventTypeDisplayChanged(string value)
+        {
+            OnPropertyChanged(nameof(TypeDisplay));
+        }
+
+        partial void OnIsAnalysisTargetChanged(bool value)
+        {
+            OnPropertyChanged(nameof(StatusText));
+            OnPropertyChanged(nameof(StatusBrush));
+            OnPropertyChanged(nameof(ShowDecision));
+        }
+
+        partial void OnIsAnalyzingChanged(bool value)
+        {
+            OnPropertyChanged(nameof(StatusText));
+            OnPropertyChanged(nameof(StatusBrush));
+            OnPropertyChanged(nameof(ShowDecision));
+        }
+
+        partial void OnIsAnalysisCompletedChanged(bool value)
+        {
+            OnPropertyChanged(nameof(StatusText));
+            OnPropertyChanged(nameof(StatusBrush));
+            OnPropertyChanged(nameof(ShowDecision));
+        }
+
+        public string TypeDisplay => string.IsNullOrWhiteSpace(EventTypeDisplay) ? EventType : EventTypeDisplay;
+
+        public string StatusText
+        {
+            get
+            {
+                if (!IsAnalysisTarget)
+                    return "분석 제외";
+                if (IsAnalyzing)
+                    return "분석 중";
+                if (IsAnalysisCompleted)
+                    return "분석 완료";
+                return "분석 대기";
+            }
+        }
+
+        public Brush StatusBrush
+        {
+            get
+            {
+                var color = !IsAnalysisTarget ? Color.FromRgb(96, 96, 96)
+                          : IsAnalyzing ? Color.FromRgb(0, 120, 212)
+                          : IsAnalysisCompleted ? Color.FromRgb(76, 175, 80)
+                          : Color.FromRgb(255, 167, 38);
+
+                var brush = new SolidColorBrush(color);
+                brush.Freeze();
+                return brush;
+            }
+        }
+
+        public bool ShowDecision => IsAnalysisTarget && IsAnalysisCompleted && !string.IsNullOrWhiteSpace(DecisionLabel);
+
+        public string DecisionLabel => Decision switch
+        {
+            "0" => "오경보",
+            "1" => "정상",
+            _ => string.Empty
+        };
+
+        public Brush DecisionBrush => Decision switch
+        {
+            "0" => new SolidColorBrush(Color.FromRgb(244, 67, 54)),
+            "1" => new SolidColorBrush(Color.FromRgb(76, 175, 80)),
+            _ => Brushes.Transparent
         };
     }
 }
