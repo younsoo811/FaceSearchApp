@@ -46,7 +46,7 @@ namespace FaceSearchApp.ViewModels
         private readonly string _configPath =
             Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "appsettings.json");
 
-        private readonly MqttClientService _mqtt = new();
+        private readonly MqttClientService _mqtt;
         private Guid? _currentAnalysisId;
 
         // ── MQTT 설정 ──────────────────────────────────────────────
@@ -108,10 +108,14 @@ namespace FaceSearchApp.ViewModels
         public ICollectionView AnalysisHistory { get; }
         public ObservableCollection<RealtimeEventItem> RealtimeEvents { get; } = new();
 
-        public VlmViewModel(ISnackbarService snackbarService, IContentDialogService dialogService)
+        public VlmViewModel(
+            ISnackbarService snackbarService,
+            IContentDialogService dialogService,
+            MqttClientService mqtt)
         {
             _snackbarService = snackbarService;
             _dialogService = dialogService;
+            _mqtt = mqtt;
 
             // CollectionView 필터 설정
             AnalysisHistory = CollectionViewSource.GetDefaultView(_allHistory);
@@ -124,6 +128,7 @@ namespace FaceSearchApp.ViewModels
             _selectedLabelType = LabelTypes.FirstOrDefault();
 
             _mqtt.MessageReceived += OnMqttMessageReceived;
+            _mqtt.ConnectionStateChanged += OnMqttConnectionStateChanged;
         }
 
         private bool FilterItem(object obj)
@@ -442,7 +447,7 @@ namespace FaceSearchApp.ViewModels
         [RelayCommand]
         private async Task ToggleConnectionAsync()
         {
-            if (_mqtt.IsConnected)
+            if (_mqtt.IsConnectionRequested)
             {
                 await _mqtt.UnsubscribeAsync(SubTopic);
                 await _mqtt.UnsubscribeAsync(_eventTopic);
@@ -502,11 +507,59 @@ namespace FaceSearchApp.ViewModels
             else
             {
                 IsConnected = false;
-                ConnectionStatus = "연결 실패";
-                ConnectButtonText = "연결";
-                StatusMessage = $"연결 실패: {error}";
+                ConnectionStatus = _mqtt.IsConnectionRequested ? "재연결 대기 중" : "연결 실패";
+                ConnectButtonText = _mqtt.IsConnectionRequested ? "연결 취소" : "연결";
+                StatusMessage = _mqtt.IsConnectionRequested
+                    ? $"연결 실패: {error} · 5초 후 자동 재연결합니다."
+                    : $"연결 실패: {error}";
                 return false;
             }
+        }
+
+        private void OnMqttConnectionStateChanged(MqttConnectionState state, string? detail)
+        {
+            void UpdateState()
+            {
+                switch (state)
+                {
+                    case MqttConnectionState.Connecting:
+                        IsConnected = false;
+                        ConnectionStatus = "연결 중...";
+                        ConnectButtonText = "연결 취소";
+                        break;
+
+                    case MqttConnectionState.Connected:
+                        IsConnected = true;
+                        ConnectionStatus = $"연결됨 · {Broker}:{Port}";
+                        ConnectButtonText = "연결 해제";
+                        StatusMessage = "MQTT 연결 성공.";
+                        break;
+
+                    case MqttConnectionState.Reconnecting:
+                        IsConnected = false;
+                        ConnectionStatus = "재연결 중...";
+                        ConnectButtonText = "연결 취소";
+                        StatusMessage = string.IsNullOrWhiteSpace(detail)
+                            ? "MQTT 연결이 끊어져 재연결을 시도합니다."
+                            : $"MQTT 연결 끊김: {detail} · 자동 재연결 중...";
+                        break;
+
+                    default:
+                        IsConnected = false;
+                        ConnectionStatus = "연결 해제됨";
+                        ConnectButtonText = "연결";
+                        StatusMessage = string.IsNullOrWhiteSpace(detail)
+                            ? "MQTT 연결이 해제되었습니다."
+                            : $"MQTT 연결 해제: {detail}";
+                        break;
+                }
+            }
+
+            var dispatcher = Application.Current?.Dispatcher;
+            if (dispatcher is null || dispatcher.CheckAccess())
+                UpdateState();
+            else
+                dispatcher.BeginInvoke(UpdateState);
         }
 
         // ═══════════════════════════════════════════════════════════
@@ -1781,7 +1834,7 @@ namespace FaceSearchApp.ViewModels
         {
             CancelResponseTimeout();
             _mqtt.MessageReceived -= OnMqttMessageReceived;
-            _mqtt.Dispose();
+            _mqtt.ConnectionStateChanged -= OnMqttConnectionStateChanged;
         }
     }
 }
